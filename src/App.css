@@ -1,0 +1,9 @@
+.dark {
+  --color-bg-main: var(--color-sidebar);
+  --color-text-main: var(--color-white);
+  --color-offwhite: #1e293b;
+}
+
+.scroll ::-webkit-scrollbar{
+  display: none;
+}

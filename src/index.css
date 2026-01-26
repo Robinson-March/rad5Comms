@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+
+@theme {
+
+  /* Core colors – your requested palette */
+  --color-white:          #ffffff;
+  --color-offwhite:       #f9fafb;     /* very light surface / main bg */
+  --color-light-red:      #ef4444;     /* primary accent – mentions, unread, errors */
+  --color-light-red-soft: #f87171;     /* softer variant – subtle highlights, hovers */
+  --color-blue:           #2563eb;     /* primary blue – buttons, links, selected */
+  --color-blue-dark:      #1d4ed8;     /* hover/focus/active states on blue */
+
+  /* Supporting neutrals (highly recommended for readability & polish) */
+  --color-text-primary:   #111827;     /* dark text on light bg */
+  --color-text-secondary: #4b5563;     /* muted text, subtitles */
+  --color-border:         #e5e7eb;     /* light borders */
+  --color-sidebar:        #0f172a;     /* dark slate sidebar background */
+  --color-sidebar-text:   #ffffff;     /* text/icons on sidebar */
+
+  /* Optional: more shades if you need them later (e.g. for gradients or states) */
+  --color-blue-700:       #1d4ed8;
+  --color-blue-600:       #2563eb;
+  --color-red-500:        #ef4444;
+  --color-red-400:        #f87171;
+  
+}
