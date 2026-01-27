@@ -9,20 +9,22 @@ import {
   Plus,
   Send,
   ChevronDown,
+  ChevronLeft,
   Paperclip,
   Mic,
   Image as ImageIcon,
   BarChart2,
 } from 'lucide-react';
-import Picker from '@emoji-mart/react';
-import data from '@emoji-mart/data';
+import EmojiPicker from 'emoji-picker-react';
+import SettingsModal from '../../pages/Settings'; 
 
 interface MainProps {
   isThreadOpen: boolean;
   toggleThreadPane: () => void;
+  onBack?: () => void;  
 }
 
-const Main = ({ isThreadOpen, toggleThreadPane }: MainProps) => {
+const Main = ({ isThreadOpen, toggleThreadPane, onBack }: MainProps) => {
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false); // ← added
@@ -30,6 +32,7 @@ const Main = ({ isThreadOpen, toggleThreadPane }: MainProps) => {
   const pickerRef = useRef<HTMLDivElement>(null);
   const plusMenuRef = useRef<HTMLDivElement>(null); // ← added
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Close both pickers/menus when clicking outside
   useEffect(() => {
@@ -51,8 +54,9 @@ const Main = ({ isThreadOpen, toggleThreadPane }: MainProps) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleEmojiSelect = (emoji: any) => {
-    setMessage((prev) => prev + emoji.native);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleEmojiClick = (emojiData: any) => {
+    setMessage((prev) => prev + emojiData.emoji);
     setShowEmojiPicker(false);
     inputRef.current?.focus();
   };
@@ -259,25 +263,30 @@ const Main = ({ isThreadOpen, toggleThreadPane }: MainProps) => {
   }));
 
   return (
-    <div className="h-screen flex-1 flex flex-col bg-offwhite">
+    <div className="h-screen flex-1 flex flex-col bg-offwhite font-poppins">
       {/* Header – unchanged */}
       <div className="flex items-center justify-center mb-2">
         <header className="h-14 bg-white flex items-center justify-between px-4 shadow-lg w-lg mt-2 rounded-3xl">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={toggleThreadPane}>
+          {onBack && (
+              <button onClick={onBack} className="p-2 -ml-2">
+                <ChevronLeft className="w-6 h-6 text-text-primary" />
+              </button>
+            )}
+          <div className="flex items-center gap-2 lg:gap-3 cursor-pointer " onClick={toggleThreadPane}>
             <h2 className="font-semibold text-text-primary">#ui-art-design</h2>
             <ChevronDown className={`w-4 h-4 text-text-secondary transition-transform duration-200 ${
                 isThreadOpen ? 'rotate-180' : 'rotate-0'}`} />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 lg:gap-2">
             <button className="p-2 rounded hover:bg-offwhite transition cursor-pointer">
-              <Phone className="w-5 h-5 text-text-secondary" />
+              <Phone className="w-4 lg:w-5 h-4 lg:h-5 text-text-secondary" />
             </button>
             <button className="p-2 rounded hover:bg-offwhite transition cursor-pointer">
-              <Video className="w-5 h-5 text-text-secondary" />
+              <Video className="w-4 lg:w-5 h-4 lg:h-5 text-text-secondary" />
             </button>
-            <button className="p-2 rounded hover:bg-offwhite transition cursor-pointer">
-              <Settings className="w-5 h-5 text-text-secondary" />
+            <button className="p-2 rounded hover:bg-offwhite transition cursor-pointer" onClick={() => setIsSettingsOpen(true)}>
+              <Settings className="w-4 lg:w-5 h-4 lg:h-5 text-text-secondary" />
             </button>
           </div>
         </header>
@@ -342,14 +351,14 @@ const Main = ({ isThreadOpen, toggleThreadPane }: MainProps) => {
       </div>
 
       {/* Input Bar */}
-      <div className="border-t border-border bg-gray-300 px-4 py-2 relative">
-        <div className="flex items-center gap-2 bg-offwhite rounded-3xl px-3 py-1 focus-within:ring-2 focus-within:ring-blue/30">
+      <div className="border-t border-border bg-gray-300 px-4 py-2 relative flex flex-col items-center justify-center">
+        <div className="h-12 flex items-center lg:gap-2 bg-offwhite rounded-3xl px-2 lg:px-3 py-1 focus-within:ring-2 focus-within:ring-blue/30 w-full">
           {/* Emoji button – unchanged */}
           <button
             className="p-1.5 hover:bg-white/50 rounded cursor-pointer"
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
           >
-            <Smile className="w-5 h-5 text-text-secondary" />
+            <Smile className="w-4 lg:w-5 h-4 lg:h-5 text-text-secondary" />
           </button>
 
           {/* Plus button with menu – NEW FUNCTIONALITY */}
@@ -358,19 +367,19 @@ const Main = ({ isThreadOpen, toggleThreadPane }: MainProps) => {
               className="p-1.5 hover:bg-white/50 rounded cursor-pointer"
               onClick={() => setShowPlusMenu(!showPlusMenu)}
             >
-              <Plus className="w-5 h-5 text-text-secondary" />
+              <Plus className="w-4 lg:w-5 h-4 lg:h-55 text-text-secondary" />
             </button>
 
             {showPlusMenu && (
               <div
                 ref={plusMenuRef}
-                className="absolute bottom-full left-0 mb-2 w-64 bg-white rounded-lg shadow-2xl border border-border py-2 z-50"
+                className="absolute bottom-full left-0 mb-2 w-52 lg:w-64 bg-white rounded-lg shadow-2xl border border-border py-2 z-50"
               >
                 <button
                   onClick={handleAttachFile}
                   className="w-full text-left px-4 py-2.5 hover:bg-offwhite flex items-center gap-3 text-sm text-text-primary"
                 >
-                  <Paperclip className="w-5 h-5 text-text-secondary" />
+                  <Paperclip className="w-4 lg:w-5 h-4 lg:h-5 text-text-secondary" />
                   Attach file
                 </button>
 
@@ -378,7 +387,7 @@ const Main = ({ isThreadOpen, toggleThreadPane }: MainProps) => {
                   onClick={handleVoiceNote}
                   className="w-full text-left px-4 py-2.5 hover:bg-offwhite flex items-center gap-3 text-sm text-text-primary"
                 >
-                  <Mic className="w-5 h-5 text-text-secondary" />
+                  <Mic className="w-4 lg:w-5 h-4 lg:h-5 text-text-secondary" />
                   Voice note
                 </button>
 
@@ -386,7 +395,7 @@ const Main = ({ isThreadOpen, toggleThreadPane }: MainProps) => {
                   onClick={handleShareImage}
                   className="w-full text-left px-4 py-2.5 hover:bg-offwhite flex items-center gap-3 text-sm text-text-primary"
                 >
-                  <ImageIcon className="w-5 h-5 text-text-secondary" />
+                  <ImageIcon className="w-4 lg:w-5 h-4 lg:h-5 text-text-secondary" />
                   Share image
                 </button>
 
@@ -394,7 +403,7 @@ const Main = ({ isThreadOpen, toggleThreadPane }: MainProps) => {
                   onClick={handleCreatePoll}
                   className="w-full text-left px-4 py-2.5 hover:bg-offwhite flex items-center gap-3 text-sm text-text-primary"
                 >
-                  <BarChart2 className="w-5 h-5 text-text-secondary" />
+                  <BarChart2 className="w-4 lg:w-5 h-4 lg:h-5 text-text-secondary" />
                   Create poll
                 </button>
               </div>
@@ -407,7 +416,7 @@ const Main = ({ isThreadOpen, toggleThreadPane }: MainProps) => {
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Type a message..."
+            placeholder="What's on your mind..."
             className="flex-1 bg-transparent outline-none text-text-primary placeholder:text-text-secondary"
           />
 
@@ -420,7 +429,7 @@ const Main = ({ isThreadOpen, toggleThreadPane }: MainProps) => {
             }`}
             disabled={!message.trim()}
           >
-            <Send className="w-5 h-5" />
+            <Send className="w-4 lg:w-5 h-4 lg:h-5" />
           </button>
         </div>
 
@@ -430,18 +439,23 @@ const Main = ({ isThreadOpen, toggleThreadPane }: MainProps) => {
             ref={pickerRef}
             className="absolute bottom-16 left-0 z-50 shadow-xl"
           >
-            <Picker
-              data={data}
-              onEmojiSelect={handleEmojiSelect}
-              theme="light"
-              previewPosition="none"
-              skinTonePosition="none"
-              navPosition="bottom"
-              maxFrequentRows={0}
+            <EmojiPicker
+              onEmojiClick={handleEmojiClick}
+              width={300}
+              height={390}
+            // theme=""
+              previewConfig={{ showPreview: false }}
+              lazyLoadEmojis={true}
+              // skinTonePosition="none" // optional – hides skin tone selector
             />
           </div>
         )}
       </div>
+
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
     </div>
   );
 };

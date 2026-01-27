@@ -25,3 +25,7 @@
   --color-red-400:        #f87171;
   
 }
+
+@theme {
+  --font-poppins: Poppins, sans-serif;
+}

@@ -4,19 +4,22 @@ import {
   Users,
   Image as ImageIcon,
   FileText,
-  X
+  // X,
+  ChevronLeft
 } from 'lucide-react';
 
 interface ThreadPaneProps {
   isGroup?: boolean;          // true = group chat, false = 1:1 DM
   isOpen?: boolean;           // controlled from parent (App.tsx)
   onToggle?: () => void;      // callback to toggle open/close
+  onBack?: () => void;
 }
 
 const ThreadPane = ({
   isGroup = true,             // default to group for demo
   isOpen = true,
-  onToggle,
+  // onToggle,
+  onBack
 }: ThreadPaneProps) => {
   const mainUser = {
     name: 'Nasir Uddin',
@@ -51,18 +54,23 @@ const ThreadPane = ({
   return (
     <div
       className={`
-        h-screen w-[320px] min-w-[300px] bg-light-red-soft border-l border-border 
-        overflow-y-auto flex flex-col transition-all duration-300 ease-in-out
+        h-screen sm:w-auto lg:w-[320px] min-w-[300px] bg-light-red-soft border-l border-border 
+        overflow-y-auto flex flex-col transition-all duration-300 ease-in-out font-poppins
         ${isOpen ? 'translate-x-0' : 'translate-x-full'}
       `}
     >
       {/* Header */}
       <div className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-white z-20">
         <div className="flex items-center gap-3">
+          {onBack && (
+            <button onClick={onBack} className="p-2 -ml-2">
+              <ChevronLeft className="w-6 h-6 text-text-secondary" />
+            </button>
+            )}
           <div className="relative">
             <Bell className="w-5 h-5 text-text-secondary hover:text-text-primary cursor-pointer" />
             {/* Optional: red dot for unread notifications */}
-            {/* <span className="absolute -top-1 -right-1 w-2 h-2 bg-light-red rounded-full"></span> */}
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-light-red rounded-full"></span>
           </div>
           <div className="flex items-center gap-3">
             <img
@@ -77,14 +85,14 @@ const ThreadPane = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* <div className="flex items-center gap-2">
           <button
             onClick={onToggle}
             className="p-2 rounded hover:bg-offwhite transition cursor-pointer"
           >
             <X className="w-5 h-5 text-text-secondary" />
           </button>
-        </div>
+        </div> */}
       </div>
 
       {/* Content */}

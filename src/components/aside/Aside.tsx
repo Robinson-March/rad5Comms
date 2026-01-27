@@ -10,14 +10,18 @@ import {
   Hash,
   AtSign,
   Moon,
-  Search,           // ← added for search icon
+  Search, 
 } from 'lucide-react';
 
-const Aside = () => {
+interface AsideProps {
+  onSelectChat?: () => void;
+}
+
+const Aside = ({ onSelectChat }: AsideProps) => {
   const [activeTab, setActiveTab] = useState<'all' | 'archived' | 'starred'>('all');
 
   return (
-    <div className="h-screen w-[280px] min-w-[260px] bg-sidebar text-sidebar-text overflow-y-auto flex flex-col scroll">
+    <div className="font-poppins h-screen sm:w-auto lg:w-[280px] min-w-[260px] bg-sidebar text-sidebar-text overflow-y-auto flex flex-col scroll">
       {/* Header / Workspace name + Search icon */}
       <div className="p-4 pb-2 border-b border-white/10 flex items-center justify-between">
         <div>
@@ -80,16 +84,16 @@ const Aside = () => {
             </button>
           </div>
           <div className="space-y-0.5">
-            <button className="w-full text-left px-3 py-1.5 rounded-md hover:bg-white/10 transition flex items-center gap-2.5 cursor-pointer">
+            <button className="w-full text-left px-3 py-1.5 rounded-md hover:bg-white/10 transition flex items-center gap-2.5 cursor-pointer" onClick={onSelectChat}>
               <Hash className="w-4 h-4 opacity-80" />
               announcements
             </button>
-            <button className="w-full text-left px-3 py-1.5 rounded-md bg-blue/20 text-white font-medium flex items-center gap-2.5 cursor-pointer">
+            <button className="w-full text-left px-3 py-1.5 rounded-md bg-blue/20 text-white font-medium flex items-center gap-2.5 cursor-pointer" onClick={onSelectChat}>
               <Hash className="w-4 h-4" />
               project-x
               <span className="ml-auto text-xs bg-light-red text-white px-1.5 rounded-full cursor-pointer">2</span>
             </button>
-            <button className="w-full text-left px-3 py-1.5 rounded-md hover:bg-white/10 transition flex items-center gap-2.5 cursor-pointer">
+            <button className="w-full text-left px-3 py-1.5 rounded-md hover:bg-white/10 transition flex items-center gap-2.5 cursor-pointer" onClick={onSelectChat}>
               <Hash className="w-4 h-4 opacity-80" />
               dev-team
             </button>
