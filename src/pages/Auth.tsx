@@ -1,8 +1,14 @@
 // src/pages/Auth.tsx
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { Mail, Lock, User, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 
 type AuthMode = 'login' | 'signup';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const Auth = () => {
   const [mode, setMode] = useState<AuthMode>('login');
@@ -13,12 +19,14 @@ const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const navigate = useNavigate();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
-    // Basic validation
+    // Client-side validation
     if (!email.trim()) {
       setError('Email is required');
       setIsLoading(false);
@@ -35,13 +43,29 @@ const Auth = () => {
       return;
     }
 
-    // Simulate API call – replace with real fetch/axios later
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      console.log(mode === 'login' ? 'Login:' : 'Signup:', { email, password, name });
-      // navigate('/')
-    } catch {
-      setError('An error occurred. Please try again.');
+      const endpoint = mode === 'login' ? '/auth/login' : '/auth/signup';
+      const payload = mode === 'login' 
+        ? { email, password }
+        : { name, email, password };
+
+      const response = await axios.post(`${API_BASE_URL}${endpoint}`, payload);
+      toast.success(mode === 'login' ? 'Logged in successfully!' : 'Account created! Welcome!', {
+        duration: 3000,
+      });
+      // Success: save token and redirect
+      localStorage.setItem('token', response.data.token);
+      navigate('/home');
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
+      } else if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else {
+        setError('An error occurred. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +126,7 @@ const Auth = () => {
                 placeholder="Full name"
                 value={name}
                 onChange={e => setName(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
               />
             </div>
           )}
@@ -114,7 +138,7 @@ const Auth = () => {
               placeholder="Email address"
               value={email}
               onChange={e => setEmail(e.target.value.trim())}
-              className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
               required
             />
           </div>
@@ -126,7 +150,7 @@ const Auth = () => {
               placeholder="Password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full pl-11 pr-12 py-3 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              className="w-full pl-11 pr-12 py-3 border border-gray-300 rounded-lg text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
               required
             />
             <button
@@ -140,9 +164,9 @@ const Auth = () => {
 
           {mode === 'login' && (
             <div className="text-right">
-              <a href="#" className="text-sm text-blue-600 hover:underline">
+              <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline">
                 Forgot password?
-              </a>
+              </Link>
             </div>
           )}
 

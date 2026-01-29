@@ -2,29 +2,54 @@
 import { BrowserRouter, Routes, Route,
   //  Navigate
    } from 'react-router-dom';
-import HomePage from './pages/homePage'; 
+import HomePage from './pages/HomePage'; 
+import { Toaster } from 'sonner';
 import Auth from './pages/Auth';
-// import Settings from './pages/Settings';
-// import NotFound from './pages/NotFound';
+import ForgotPassword from './pages/ForgotPassword';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
     <BrowserRouter>
+      <Toaster 
+          position="top-right"           // or "top-center", "bottom-right", etc.
+          richColors                     // enables colorful toasts (blue for success, red for error)
+          closeButton                    // shows X button
+          toastOptions={{
+            style: {
+              fontFamily: 'Poppins, sans-serif',
+              borderRadius: '12px',
+              padding: '12px 16px',
+            },
+            success: {
+              style: {
+                background: '#10b981',   // green success
+                color: 'white',
+              },
+            },
+            error: {
+              style: {
+                background: '#ef4444',   // red error
+                color: 'white',
+              },
+            },
+            loading: {
+              style: {
+                background: '#3b82f6',   // blue loading
+                color: 'white',
+              },
+            },
+          }}
+        />
       <Routes>
         {/* Main authenticated/home route */}
         <Route path="/" element={<Auth />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         
-        {/* Optional: redirect root to home (or dashboard) */}
-        {/* <Route path="/home" element={<Navigate to="/" replace />} /> */}
-
-        {/* Example future routes – uncomment/add when you create these pages */}
-        
-        <Route path="/home" element={<HomePage />} />
-        {/* <Route path="/settings" element={<Settings />} /> */}
-        {/* <Route path="/channel/:id" element={<ChannelPage />} /> */}
-        {/* <Route path="/dm/:userId" element={<DirectMessagePage />} /> */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/home" element={<HomePage />} />
+        </Route>
        
-
         {/* Catch-all route for 404 */}
         <Route path="*" element={
           <div className="flex h-screen items-center justify-center bg-gray-100">

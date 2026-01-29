@@ -54,7 +54,7 @@ const ThreadPane = ({
   return (
     <div
       className={`
-        h-screen sm:w-auto lg:w-[320px] min-w-[300px] bg-light-red-soft border-l border-border 
+        h-screen sm:w-auto lg:w-[320px] min-w-[300px] bg-sidebar border-l border-border 
         overflow-y-auto flex flex-col transition-all duration-300 ease-in-out font-poppins
         ${isOpen ? 'translate-x-0' : 'translate-x-full'}
       `}
