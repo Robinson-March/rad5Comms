@@ -18,15 +18,15 @@ const ChatHeader = ({
 }: ChatHeaderProps) => {
   return (
     <div className="flex items-center justify-center mb-2 px-4">
-      <header className="h-14 bg-white flex items-center justify-between px-4 shadow-lg w-full max-w-4xl mt-2 rounded-3xl">
+      <header className="h-14 bg-white flex items-center justify-between px-2 lg:px-4 shadow-lg w-full max-w-4xl mt-2 rounded-3xl">
         {onBack && (
           <button onClick={onBack} className="p-2 -ml-2">
-            <ChevronLeft className="w-6 h-6 text-text-primary" />
+            <ChevronLeft className="w-4 lg:w-6 h-4 lg:h-6 text-text-primary" />
           </button>
         )}
 
         <div
-          className="flex items-center gap-2 lg:gap-3 cursor-pointer"
+          className="flex items-center lg:gap-3 cursor-pointer"
           onClick={toggleThreadPane}
         >
           <h2 className="font-semibold text-text-primary">

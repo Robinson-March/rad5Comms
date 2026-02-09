@@ -15,11 +15,11 @@ function HomePage() {
   const [isPageLoading, setIsPageLoading] = useState(true);
 
   // Selected chat now includes name
-  const [selectedChat, setSelectedChat] = useState<{
-    id: string;
-    type: 'channel' | 'dm';
-    name?: string;
-  } | null>(null);
+  // const [selectedChat, setSelectedChat] = useState<{
+  //   id: string;
+  //   type: 'channel' | 'dm';
+  //   name?: string;
+  // } | null>(null);
 
   // Mobile detection
   useEffect(() => {
@@ -53,6 +53,8 @@ function HomePage() {
       return next;
     });
   };
+
+  const [selectedChat, setSelectedChat] = useState<ThreadPaneProps['selectedChat']>(null);
 
   const handleSelectChat = (chatId: string, type: 'channel' | 'dm', name?: string) => {
     setSelectedChat({ id: chatId, type, name });
@@ -248,6 +250,7 @@ function HomePage() {
             isOpen={true}
             onToggle={toggleThreadPane}
             onBack={isMobile ? goBackToMain : undefined}
+            selectedChat={selectedChat}
           />
         )}
       </div>

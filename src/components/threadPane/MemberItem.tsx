@@ -8,7 +8,7 @@ interface MemberItemProps {
 
 const MemberItem = ({ member, isAdmin }: MemberItemProps) => {
   return (
-    <div className="flex items-center justify-between py-2 px-3 hover:bg-white/5 rounded-lg group">
+    <div className="flex items-center justify-between py-2 px-3 hover:bg-white/10 rounded-lg group">
       <div className="flex items-center gap-3">
         {member.avatar ? (
           <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-full object-cover" />
@@ -18,8 +18,8 @@ const MemberItem = ({ member, isAdmin }: MemberItemProps) => {
           </div>
         )}
         <div>
-          <p className="font-medium text-text-primary">{member.name}</p>
-          {member.role && <p className="text-xs text-text-secondary">{member.role}</p>}
+          <p className="font-medium text-white">{member.name}</p>
+          {member.role && <p className="text-xs text-gray-400">{member.role}</p>}
         </div>
       </div>
 

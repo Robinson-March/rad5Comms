@@ -6,8 +6,7 @@ import MembersSection from './MembersSection';
 import ActionsSection from './ActionsSection';
 
 interface ThreadPaneProps {
-  isGroup?: boolean;
-  isOpen?: boolean;
+  isOpen: boolean;
   onToggle?: () => void;
   onBack?: () => void;
   selectedChat?: {
@@ -15,51 +14,71 @@ interface ThreadPaneProps {
     name: string;
     type: 'channel' | 'dm';
     description?: string;
-    memberCount?: number;
-    members?: Array<{ id: string; name: string; avatar?: string; role?: string }>;
-    isAdmin?: boolean; // whether current user is admin
+    avatar?: string;           // ← added for avatar
+    memberCount?: number;      // ← for groups
+    members?: Array<{
+      id: string;
+      name: string;
+      avatar?: string;
+      role?: string;
+    }>;
+    isAdmin?: boolean;         // whether current user is admin in this channel
   } | null;
 }
 
 const ThreadPane = ({
-  isGroup = true,
-  isOpen = true,
+  isOpen,
   onBack,
   selectedChat,
 }: ThreadPaneProps) => {
   if (!isOpen) return null;
 
-  // Dummy data fallback if no selectedChat
-  const chat = selectedChat || {
-    id: 'general',
-    name: 'General',
-    type: 'channel',
-    description: 'Main organization-wide channel for announcements and discussions.',
-    memberCount: 128,
-    members: [
-      { id: '1', name: 'Wisdom Ezeh', avatar: 'https://i.pravatar.cc/150?img=1', role: 'admin' },
-      { id: '2', name: 'Nasir Uddin', avatar: 'https://i.pravatar.cc/150?img=2' },
-      // ... more dummy
-    ],
-    isAdmin: true,
-  };
+  // If no chat selected → show placeholder
+  if (!selectedChat) {
+    return (
+      <div className="h-screen lg:w-[320px] min-w-[300px] bg-sidebar border-l border-border flex flex-col items-center justify-center text-center text-gray-400">
+        <p className="text-lg font-medium">No chat selected</p>
+        <p className="text-sm mt-2">Select a conversation to view details</p>
+      </div>
+    );
+  }
+
+  const isGroup = selectedChat.type === 'channel';
 
   return (
     <div className="h-screen lg:w-[320px] min-w-[300px] bg-sidebar border-l border-border overflow-y-auto flex flex-col font-poppins">
       {/* Header with back button */}
-      <div className="p-4 border-b border-border flex items-center gap-3 sticky top-0 bg-sidebar z-10">
+      <div className="p-1 border-b border-border flex items-center sticky top-0 bg-sidebar z-10 lg:hidden">
         {onBack && (
-          <button onClick={onBack} className="p-2 -ml-2">
-            <ChevronLeft className="w-6 h-6 text-text-secondary" />
+          <button onClick={onBack} className="p-2 flex text-white">
+            <ChevronLeft className="w-6 h-6 text-white"/>
+            Back
           </button>
         )}
-        <h2 className="font-semibold text-text-primary truncate">{chat.name}</h2>
       </div>
 
       <div className="flex-1 px-4 py-6 space-y-10">
-        <ThreadHeader chat={chat} isGroup={isGroup} />
-        <MediaSection />
-        {isGroup && <MembersSection members={chat.members || []} isAdmin={chat.isAdmin} />}
+        {/* Dynamic Header */}
+        <ThreadHeader
+          chat={{
+            ...selectedChat,
+            isGroup, // pass explicitly if needed
+          }}
+        />
+
+        {/* Media */}
+        <MediaSection media={selectedChat?.media || []} />
+
+        {/* Members - only for groups/channels */}
+        {isGroup && (
+          <MembersSection
+            members={selectedChat?.members || []}
+            isAdmin={selectedChat?.isAdmin || false}
+            isGroup={selectedChat?.type === 'channel'} // ← controls visibility
+          />
+        )}
+
+        {/* Actions */}
         <ActionsSection isGroup={isGroup} />
       </div>
     </div>

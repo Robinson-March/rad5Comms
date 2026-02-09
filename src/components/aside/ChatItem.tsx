@@ -1,41 +1,86 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // components/aside/ChatItem.tsx
 import { useState, useEffect, useRef } from 'react';
-import { MoreVertical, Hash, Archive, Star, Moon } from 'lucide-react';
+import { MoreVertical, Hash, Archive, Star, Moon, CheckCircle } from 'lucide-react';
+import axios from 'axios';
 import { toast } from 'sonner';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 interface ChatItemProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  item: any; // Channel | User
+  item: {
+    id: string;
+    name: string;
+    avatar?: string;
+    unread?: number;
+    isArchived?: boolean;
+    isStarred?: boolean;
+    // ... other fields
+  };
   type: 'channel' | 'dm';
   onSelectChat?: (chatId: string, type: 'channel' | 'dm', name?: string) => void;
+  activeTab: 'all' | 'archived' | 'starred';
 }
 
-const ChatItem = ({ item, type, onSelectChat }: ChatItemProps) => {
+const ChatItem = ({ item, type, onSelectChat, activeTab }: ChatItemProps) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsMenuOpen(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const toggleMenu = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent chat selection
+    e.stopPropagation();
     setIsMenuOpen(!isMenuOpen);
   };
 
-  const handleAction = (action: 'archive' | 'star' | 'mute') => {
-    // Placeholder – replace with real API call later
-    toast.success(`${action.charAt(0).toUpperCase() + action.slice(1)}d ${type} "${item.name}"`);
+  const handleAction = async (action: 'markRead' | 'archive' | 'star' | 'mute') => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No token');
+
+      let baseEndpoint = '';
+      if (type === 'channel') {
+        baseEndpoint = `/channels/${item.id}`;
+      } else {
+        baseEndpoint = `/channels/personal/${item.id}`;
+      }
+
+      const actionPath = action === 'markRead' ? '/read' : `/${action}`;
+
+      await axios.post(`${API_BASE_URL}${baseEndpoint}${actionPath}`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const actionText = {
+        markRead: 'marked as read',
+        archive: 'archived',
+        star: 'starred',
+        mute: 'muted',
+      }[action];
+
+      toast.success(`${item.name} ${actionText}`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || `Failed to ${action} ${item.name}`);
+    }
+
     setIsMenuOpen(false);
   };
+
+  // Tab visibility filter (hide if not matching active tab)
+  if (
+    (activeTab === 'archived' && !item.isArchived) ||
+    (activeTab === 'starred' && !item.isStarred)
+  ) {
+    return null;
+  }
 
   return (
     <div className="relative" ref={menuRef}>
@@ -46,11 +91,7 @@ const ChatItem = ({ item, type, onSelectChat }: ChatItemProps) => {
         {type === 'channel' ? (
           <Hash className="w-4 h-4 opacity-80" />
         ) : item.avatar ? (
-          <img
-            src={item.avatar}
-            alt={item.name}
-            className="w-6 h-6 rounded-full object-cover shrink-0"
-          />
+          <img src={item.avatar} alt={item.name} className="w-6 h-6 rounded-full object-cover shrink-0" />
         ) : (
           <div className="w-6 h-6 rounded-full bg-blue-500/30 flex items-center justify-center text-white text-xs font-bold">
             {item.name.charAt(0).toUpperCase()}
@@ -67,32 +108,43 @@ const ChatItem = ({ item, type, onSelectChat }: ChatItemProps) => {
 
         <button
           onClick={toggleMenu}
-          className="p-1 rounded-full cursor-pointer"
+          className="p-1 rounded-full transition cursor-pointer"
         >
           <MoreVertical className="w-4 h-4 opacity-70" />
         </button>
       </button>
 
-      {/* Dropdown Menu */}
       {isMenuOpen && (
-        <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-lg shadow-xl border border-gray-200 py-1.5 z-50">
+        <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1.5 z-50">
+          {item.unread && item.unread > 0 && (
+            <button
+              onClick={() => handleAction('markRead')}
+              className="w-full text-left px-4 py-2.5 hover:bg-gray-100 flex items-center gap-3 text-sm text-gray-700"
+            >
+              <CheckCircle className="w-4 h-4" />
+              Mark as read
+            </button>
+          )}
+
           <button
             onClick={() => handleAction('archive')}
-            className="cursor-pointer w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2.5 text-sm text-gray-700"
+            className="w-full text-left px-4 py-2.5 hover:bg-gray-100 flex items-center gap-3 text-sm text-gray-700"
           >
             <Archive className="w-4 h-4" />
             Archive
           </button>
+
           <button
             onClick={() => handleAction('star')}
-            className="cursor-pointer w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2.5 text-sm text-gray-700"
+            className="w-full text-left px-4 py-2.5 hover:bg-gray-100 flex items-center gap-3 text-sm text-gray-700"
           >
             <Star className="w-4 h-4" />
             Star
           </button>
+
           <button
             onClick={() => handleAction('mute')}
-            className="cursor-pointer w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2.5 text-sm text-gray-700"
+            className="w-full text-left px-4 py-2.5 hover:bg-gray-100 flex items-center gap-3 text-sm text-gray-700"
           >
             <Moon className="w-4 h-4" />
             Mute

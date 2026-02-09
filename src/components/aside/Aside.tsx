@@ -9,7 +9,7 @@ import AsideTabs from './AsideTabs';
 import ChatSection from './ChatSection';
 import CreateChannelModal from './CreateChannelModal';
 import NewConversationModal from './NewConversationModal';
-import Skeleton from 'react-loading-skeleton';
+// import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import { AtSign, Moon, Plus, Users } from 'lucide-react';
 
@@ -37,6 +37,8 @@ interface Channel {
   createdAt: string;
   updatedAt: string;
   unread?: number;
+  isArchived?: boolean;
+  isStarred?: boolean;
 }
 
 interface User {
@@ -59,6 +61,8 @@ interface User {
   createdAt: string;
   updatedAt: string;
   unread?: number;
+  isArchived?: boolean;
+  isStarred?: boolean;
 }
 
 const Aside = ({ onSelectChat }: AsideProps) => {
@@ -67,12 +71,32 @@ const Aside = ({ onSelectChat }: AsideProps) => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const [showCreateChannelModal, setShowCreateChannelModal] = useState(false);
   const [showNewConversationModal, setShowNewConversationModal] = useState(false);
 
   const navigate = useNavigate();
 
+  // Fetch current user ID (to exclude self from DMs)
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        const res = await axios.get(`${API_BASE_URL}/users/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setCurrentUserId(res.data?.id || res.data?.user?.id);
+      } catch (err) {
+        console.warn('Failed to fetch current user ID', err);
+      }
+    };
+    fetchCurrentUser();
+  }, []);
+
+  // Fetch channels & users
   useEffect(() => {
     const fetchData = async () => {
       const token = localStorage.getItem('token');
@@ -114,65 +138,75 @@ const Aside = ({ onSelectChat }: AsideProps) => {
     fetchData();
   }, [navigate]);
 
+  // Filter logic
+  const filteredChannels = channels.filter((ch) => {
+    if (activeTab === 'all') return true;
+    if (activeTab === 'archived') return ch.isArchived;
+    if (activeTab === 'starred') return ch.isStarred;
+    return true;
+  });
+
+  const filteredUsers = users
+    .filter((u) => u.id !== currentUserId) // No self-DM
+    .filter((u) => {
+      if (activeTab === 'all') return true;
+      if (activeTab === 'archived') return u.isArchived;
+      if (activeTab === 'starred') return u.isStarred;
+      return true;
+    });
+
+  // Callback for optimistic updates after action
+  const handleActionSuccess = (updatedItem: any, isChannel: boolean) => {
+    if (isChannel) {
+      setChannels((prev) =>
+        prev.map((ch) => (ch.id === updatedItem.id ? { ...ch, ...updatedItem } : ch))
+      );
+    } else {
+      setUsers((prev) =>
+        prev.map((u) => (u.id === updatedItem.id ? { ...u, ...updatedItem } : u))
+      );
+    }
+  };
+
   return (
-    <div className="font-poppins h-screen sm:w-auto lg:w-[280px] min-w-[260px] bg-sidebar text-sidebar-text overflow-y-auto flex flex-col scroll">
-      <AsideHeader isLoading={isLoading} />
+    <div className="font-poppins h-screen sm:w-auto lg:w-[280px] min-w-[260px] bg-sidebar text-sidebar-text flex flex-col">
+      <AsideHeader isLoading={isLoading}
+      channels={channels}
+      users={users}
+      onSelectChat={onSelectChat}
+    />
 
       <AsideTabs activeTab={activeTab} setActiveTab={setActiveTab} isLoading={isLoading} />
 
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6 scroll">
-        {isLoading ? (
-          // Skeleton (you can keep or move to a separate SkeletonAside.tsx later)
-          <div className="space-y-8">
-            <div>
-              <div className="flex items-center justify-between mb-2 px-2">
-                <Skeleton width={80} height={16} />
-                <Skeleton circle width={20} height={20} />
-              </div>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-3 py-2 px-3">
-                  <Skeleton circle width={24} height={24} />
-                  <Skeleton width="70%" height={16} />
-                </div>
-              ))}
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2 px-2">
-                <Skeleton width={100} height={16} />
-                <Skeleton circle width={20} height={20} />
-              </div>
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-3 py-2 px-3">
-                  <Skeleton circle width={32} height={32} />
-                  <Skeleton width="80%" height={16} />
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : error ? (
-          <div className="text-center text-red-400 py-8 px-4 text-sm">{error}</div>
-        ) : (
-          <>
-            <ChatSection
-              title="TEAM"
-              icon={<Users className="w-3.5 h-3.5" />}
-              items={channels}
-              type="channel"
-              onSelectChat={onSelectChat}
-              onPlusClick={() => setShowCreateChannelModal(true)}
-              emptyMessage="No channels yet. Click + to create one!"
-            />
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {/* Channels ~60% */}
+        <div className="flex-6 overflow-y-auto px-3 py-4">
+          <ChatSection
+            title="TEAM"
+            icon={<Users className="w-3.5 h-3.5" />}
+            items={filteredChannels}
+            type="channel"
+            onSelectChat={onSelectChat}
+            onPlusClick={() => setShowCreateChannelModal(true)}
+            emptyMessage="No channels yet. Click + to create one!"
+            activeTab={activeTab}
+            onActionSuccess={(updated) => handleActionSuccess(updated, true)}
+          />
+        </div>
 
-            <ChatSection
-              title="PERSONAL"
-              icon={<AtSign className="w-3.5 h-3.5" />}
-              items={users}
-              type="dm"
-              onSelectChat={onSelectChat}
-              emptyMessage="No direct messages yet"
-            />
-          </>
-        )}
+        {/* Personal ~40% */}
+        <div className="flex-4 overflow-y-auto px-3 py-4 border-t border-white/10">
+          <ChatSection
+            title="PERSONAL"
+            icon={<AtSign className="w-3.5 h-3.5" />}
+            items={filteredUsers}
+            type="dm"
+            onSelectChat={onSelectChat}
+            emptyMessage="No direct messages yet"
+            activeTab={activeTab}
+            onActionSuccess={(updated) => handleActionSuccess(updated, false)}
+          />
+        </div>
       </div>
 
       <div className="p-4 border-t border-white/10 flex gap-3">

@@ -6,11 +6,12 @@ import ChatItem from './ChatItem';
 interface ChatSectionProps {
   title: string;
   icon: React.ReactNode;
-  items: Array<any>; // Channel | User
+  items: any[];
   type: 'channel' | 'dm';
   onSelectChat?: (chatId: string, type: 'channel' | 'dm', name?: string) => void;
   onPlusClick?: () => void;
   emptyMessage: string;
+  activeTab: 'all' | 'archived' | 'starred';
 }
 
 const ChatSection = ({
@@ -19,6 +20,7 @@ const ChatSection = ({
   items,
   type,
   onSelectChat,
+  activeTab,
   onPlusClick,
   emptyMessage,
 }: ChatSectionProps) => {
@@ -48,6 +50,7 @@ const ChatSection = ({
               item={item}
               type={type}
               onSelectChat={onSelectChat}
+              activeTab={activeTab} // pass activeTab if filtering inside ChatItem
             />
           ))
         )}
