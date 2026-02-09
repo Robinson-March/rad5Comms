@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/main/MessageList.tsx
+import { useEffect, useRef } from 'react';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import MessageBubble from './MessageBubble';
-import { format, isToday, isYesterday, differenceInCalendarDays } from 'date-fns';
+import { format } from 'date-fns';
 
 interface MessageListProps {
   messages?: any[] | null;          // Allow undefined / null
@@ -14,6 +15,15 @@ interface MessageListProps {
 
 const MessageList = ({ messages = [], isLoading, selectedChat }: MessageListProps) => {
   // messages is now guaranteed to be [] even if parent passes undefined/null
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isLoading) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [messages, selectedChat, isLoading]);
 
   if (isLoading) {
     return (
@@ -59,11 +69,17 @@ const MessageList = ({ messages = [], isLoading, selectedChat }: MessageListProp
     );
   }
 
-  // Group messages by date (safe version)
+  // Sort and group messages by calendar day
   const groupedMessages: { date: string; messages: any[] }[] = [];
-  let currentDate: string | null = null;
+  let currentKey: string | null = null;
 
-  messages.forEach((msg) => {
+  const sortedMessages = [...messages].sort((a, b) => {
+    const aDate = new Date(a.time);
+    const bDate = new Date(b.time);
+    return aDate.getTime() - bDate.getTime();
+  });
+
+  sortedMessages.forEach((msg) => {
     let msgDate: Date;
 
     try {
@@ -76,31 +92,32 @@ const MessageList = ({ messages = [], isLoading, selectedChat }: MessageListProp
       msgDate = new Date();
     }
 
-    let dateLabel: string;
+    const localMidnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const msgDay = localMidnight(msgDate);
+    const todayDay = localMidnight(new Date());
+    const diffDays = Math.round((todayDay.getTime() - msgDay.getTime()) / 86400000);
 
-    if (isToday(msgDate)) {
+    const key = `${msgDay.getFullYear()}-${msgDay.getMonth() + 1}-${msgDay.getDate()}`;
+
+    let dateLabel = '';
+    if (diffDays === 0) {
       dateLabel = 'Today';
-    } else if (isYesterday(msgDate)) {
+    } else if (diffDays === 1) {
       dateLabel = 'Yesterday';
     } else {
-      const daysDiff = differenceInCalendarDays(new Date(), msgDate);
-      if (daysDiff <= 6) {
-        dateLabel = format(msgDate, 'EEEE');
-      } else {
-        dateLabel = format(msgDate, 'MMM d, yyyy');
-      }
+      dateLabel = format(msgDay, 'EEE, MMM d');
     }
 
-    if (dateLabel !== currentDate) {
+    if (key !== currentKey) {
       groupedMessages.push({ date: dateLabel, messages: [] });
-      currentDate = dateLabel;
+      currentKey = key;
     }
 
     groupedMessages[groupedMessages.length - 1].messages.push(msg);
   });
 
   return (
-    <div className="flex-1 overflow-y-scroll px-6 py-4 space-y-8 scroll">
+    <div ref={containerRef} className="flex-1 overflow-y-scroll px-6 py-4 space-y-8 scroll">
       {groupedMessages.map((group, groupIndex) => (
         <div key={groupIndex}>
           <div className="flex justify-center my-6">
@@ -113,6 +130,7 @@ const MessageList = ({ messages = [], isLoading, selectedChat }: MessageListProp
             <MessageBubble
               key={msg.id}
               message={msg}
+              showSenderName={selectedChat?.type === 'channel'}
               onDelete={(msgId) => {
                 // This callback is defined in parent — safe
               }}
@@ -125,6 +143,7 @@ const MessageList = ({ messages = [], isLoading, selectedChat }: MessageListProp
           ))}
         </div>
       ))}
+      <div ref={bottomRef} />
     </div>
   );
 };

@@ -72,6 +72,7 @@ const Aside = ({ onSelectChat }: AsideProps) => {
   const [users, setUsers] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
 
   const [showCreateChannelModal, setShowCreateChannelModal] = useState(false);
   const [showNewConversationModal, setShowNewConversationModal] = useState(false);
@@ -168,12 +169,17 @@ const Aside = ({ onSelectChat }: AsideProps) => {
     }
   };
 
+  const handleSelectChat = (chatId: string, type: 'channel' | 'dm', name?: string) => {
+    setSelectedChatId(chatId);
+    onSelectChat?.(chatId, type, name);
+  };
+
   return (
     <div className="font-poppins h-screen sm:w-auto lg:w-[280px] min-w-[260px] bg-sidebar text-sidebar-text flex flex-col">
       <AsideHeader isLoading={isLoading}
       channels={channels}
       users={users}
-      onSelectChat={onSelectChat}
+      onSelectChat={handleSelectChat}
     />
 
       <AsideTabs activeTab={activeTab} setActiveTab={setActiveTab} isLoading={isLoading} />
@@ -186,11 +192,12 @@ const Aside = ({ onSelectChat }: AsideProps) => {
             icon={<Users className="w-3.5 h-3.5" />}
             items={filteredChannels}
             type="channel"
-            onSelectChat={onSelectChat}
+            onSelectChat={handleSelectChat} // ← use handler
             onPlusClick={() => setShowCreateChannelModal(true)}
             emptyMessage="No channels yet. Click + to create one!"
             activeTab={activeTab}
             onActionSuccess={(updated) => handleActionSuccess(updated, true)}
+            selectedChatId={selectedChatId} // ← pass current selected ID
           />
         </div>
 
@@ -201,10 +208,11 @@ const Aside = ({ onSelectChat }: AsideProps) => {
             icon={<AtSign className="w-3.5 h-3.5" />}
             items={filteredUsers}
             type="dm"
-            onSelectChat={onSelectChat}
+            onSelectChat={handleSelectChat} // ← use handler
             emptyMessage="No direct messages yet"
             activeTab={activeTab}
             onActionSuccess={(updated) => handleActionSuccess(updated, false)}
+            selectedChatId={selectedChatId} // ← pass current selected ID
           />
         </div>
       </div>
@@ -230,7 +238,7 @@ const Aside = ({ onSelectChat }: AsideProps) => {
       <NewConversationModal
         isOpen={showNewConversationModal}
         onClose={() => setShowNewConversationModal(false)}
-        onSelectChat={onSelectChat}
+        onSelectChat={handleSelectChat} // ← use handler here too
       />
     </div>
   );

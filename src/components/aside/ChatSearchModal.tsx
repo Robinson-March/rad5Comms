@@ -54,9 +54,9 @@ const ChatSearchModal = ({
           <h2 className="text-xl font-bold text-gray-900">Search Chats</h2>
           <button
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-gray-100 transition"
+            className="cursor-pointer p-2 rounded-full hover:bg-sidebar transition"
           >
-            <X className="w-6 h-6 text-gray-600" />
+            <X className="w-6 h-6 text-gray-600 hover:text-white" />
           </button>
         </div>
 
@@ -92,7 +92,7 @@ const ChatSearchModal = ({
                             onSelectChat(ch.id, 'channel', ch.name);
                             onClose();
                           }}
-                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-xl transition"
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-300 cursor-pointer rounded-xl transition"
                         >
                           <Hash className="w-6 h-6 text-gray-500" />
                           <span className="font-medium text-gray-900">{ch.name}</span>
@@ -112,7 +112,7 @@ const ChatSearchModal = ({
                             onSelectChat(u.id, 'dm', u.name);
                             onClose();
                           }}
-                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 rounded-xl transition"
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-300 cursor-pointer rounded-xl transition"
                         >
                           {u.avatar ? (
                             <img

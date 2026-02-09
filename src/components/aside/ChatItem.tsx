@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // components/aside/ChatItem.tsx
 import { useState, useEffect, useRef } from 'react';
 import { MoreVertical, Hash, Archive, Star, Moon, CheckCircle } from 'lucide-react';
@@ -20,11 +19,14 @@ interface ChatItemProps {
   type: 'channel' | 'dm';
   onSelectChat?: (chatId: string, type: 'channel' | 'dm', name?: string) => void;
   activeTab: 'all' | 'archived' | 'starred';
+  selectedChatId?: string;
 }
 
-const ChatItem = ({ item, type, onSelectChat, activeTab }: ChatItemProps) => {
+const ChatItem = ({ item, type, onSelectChat, activeTab, selectedChatId }: ChatItemProps) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const isSelected = selectedChatId === item.id;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -67,6 +69,7 @@ const ChatItem = ({ item, type, onSelectChat, activeTab }: ChatItemProps) => {
       }[action];
 
       toast.success(`${item.name} ${actionText}`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       toast.error(err.response?.data?.error || `Failed to ${action} ${item.name}`);
     }
@@ -74,7 +77,7 @@ const ChatItem = ({ item, type, onSelectChat, activeTab }: ChatItemProps) => {
     setIsMenuOpen(false);
   };
 
-  // Tab visibility filter (hide if not matching active tab)
+  // Tab visibility filter
   if (
     (activeTab === 'archived' && !item.isArchived) ||
     (activeTab === 'starred' && !item.isStarred)
@@ -84,9 +87,13 @@ const ChatItem = ({ item, type, onSelectChat, activeTab }: ChatItemProps) => {
 
   return (
     <div className="relative" ref={menuRef}>
-      <button
+      <div
         onClick={() => onSelectChat?.(item.id, type, item.name)}
-        className="w-full text-left px-3 py-1.5 rounded-md hover:bg-white/10 transition flex items-center gap-2.5 cursor-pointer group"
+        className={`w-full text-left px-3 py-1.5 rounded-md transition flex items-center gap-2.5 cursor-pointer group ${
+          isSelected 
+            ? 'bg-blue/50 text-white' 
+            : 'hover:bg-white/10'
+        }`}
       >
         {type === 'channel' ? (
           <Hash className="w-4 h-4 opacity-80" />
@@ -100,7 +107,8 @@ const ChatItem = ({ item, type, onSelectChat, activeTab }: ChatItemProps) => {
 
         <span className="flex-1 truncate">{item.name}</span>
 
-        {item.unread && item.unread > 0 && (
+        {/* Only show badge if unread > 0 */}
+        {typeof item.unread === 'number' && item.unread > 0 && (
           <span className="ml-2 text-xs bg-red-300/80 text-white px-2 py-0.5 rounded-full font-medium">
             {item.unread}
           </span>
@@ -108,11 +116,11 @@ const ChatItem = ({ item, type, onSelectChat, activeTab }: ChatItemProps) => {
 
         <button
           onClick={toggleMenu}
-          className="p-1 rounded-full transition cursor-pointer"
+          className="p-1 rounded-full lg:opacity-0 lg:group-hover:opacity-100 transition cursor-pointer"
         >
           <MoreVertical className="w-4 h-4 opacity-70" />
         </button>
-      </button>
+      </div>
 
       {isMenuOpen && (
         <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1.5 z-50">

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/main/MessageBubble.tsx
 import { useState, useRef, useEffect } from 'react';
-import { format, isToday, isYesterday } from 'date-fns';
+import { format } from 'date-fns';
 import {
   MoreVertical,
   Reply,
@@ -32,6 +32,7 @@ interface MessageBubbleProps {
   onEdit?: (messageId: string, newText: string) => void; // callback to update list
   onReply?: (message: any) => void;           // optional reply feature
   onForward?: (message: any) => void;         // optional forward feature
+  showSenderName?: boolean;
 }
 
 const MessageBubble = ({
@@ -40,6 +41,7 @@ const MessageBubble = ({
   onEdit,
   onReply,
   onForward,
+  showSenderName = false,
 }: MessageBubbleProps) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -126,18 +128,11 @@ const MessageBubble = ({
     setShowMenu(false);
   };
 
-  // Friendly timestamp
   let displayTime = '—';
   if (message.time) {
     const timestamp = new Date(message.time);
     if (!isNaN(timestamp.getTime())) {
-      if (isToday(timestamp)) {
-        displayTime = format(timestamp, 'HH:mm');
-      } else if (isYesterday(timestamp)) {
-        displayTime = `Yesterday ${format(timestamp, 'HH:mm')}`;
-      } else {
-        displayTime = format(timestamp, 'MMM d, HH:mm');
-      }
+      displayTime = format(timestamp, 'HH:mm');
     }
   }
 
@@ -154,7 +149,7 @@ const MessageBubble = ({
       )}
 
       <div className={`max-w-[70%] ${message.isOwn ? 'items-end' : 'items-start'}`}>
-        {!message.isOwn && (
+        {!message.isOwn && showSenderName && (
           <div className="text-xs text-text-secondary mb-1">{message.sender?.name}</div>
         )}
 
