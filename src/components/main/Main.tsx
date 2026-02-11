@@ -9,6 +9,7 @@ import ChatPlaceholder from './ChatPlaceholder';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import SettingsModal from '../../pages/Settings';
+import { useWebSocket } from '../../context/ws';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -28,12 +29,14 @@ interface Message {
   hasImage?: boolean;
   hasAudio?: boolean;
   duration?: string;
+  type?: 'system' | 'user';
 }
 
 const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { socket } = useWebSocket();
 
   // Fetch messages
   useEffect(() => {
@@ -106,9 +109,66 @@ const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProp
   initAndFetchMessages();
 }, [selectedChat]);
 
+  useEffect(() => {
+    const onMemberAdded = (e: Event) => {
+      const ce = e as CustomEvent<{
+        channelId: string;
+        addedUser: { id: string; name: string };
+        addedBy: { name: string };
+      }>;
+      if (!selectedChat || selectedChat.type !== 'channel') return;
+      if (selectedChat.id !== ce.detail.channelId) return;
+      const sysMessage: Message = {
+        id: `sys-${Date.now()}`,
+        sender: { id: 'system', name: 'System' },
+        text: `${ce.detail.addedBy.name} added ${ce.detail.addedUser.name}`,
+        time: new Date().toISOString(),
+        isOwn: false,
+        type: 'system',
+      };
+      setMessages((prev) => [...prev, sysMessage]);
+    };
+    window.addEventListener('member-added', onMemberAdded as EventListener);
+    return () => window.removeEventListener('member-added', onMemberAdded as EventListener);
+  }, [selectedChat]);
+
   const handleMessageSent = (newMessage: Message) => {
     setMessages((prev) => [...prev, newMessage]);
   };
+
+  useEffect(() => {
+    if (!socket || !selectedChat || selectedChat.type !== 'channel') return;
+    const channelId = selectedChat.id;
+    socket.emit('join_channel', { channelId });
+
+    const onNewMessage = (data: any) => {
+      if (data?.channelId !== channelId) return;
+      const incoming = data.message;
+      if (!incoming) return;
+      setMessages((prev) => [...prev, incoming]);
+    };
+    const onMessageEdited = (data: any) => {
+      if (data?.channelId !== channelId) return;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === data.messageId ? { ...m, text: data.text } as Message : m))
+      );
+    };
+    const onMessageDeleted = (data: any) => {
+      if (data?.channelId !== channelId) return;
+      setMessages((prev) => prev.filter((m) => m.id !== data.messageId));
+    };
+
+    socket.on('new_message', onNewMessage);
+    socket.on('message_edited', onMessageEdited);
+    socket.on('message_deleted', onMessageDeleted);
+
+    return () => {
+      socket.emit('leave_channel', { channelId });
+      socket.off('new_message', onNewMessage);
+      socket.off('message_edited', onMessageEdited);
+      socket.off('message_deleted', onMessageDeleted);
+    };
+  }, [socket, selectedChat]);
 
   return (
     <div className="h-screen flex-1 flex flex-col bg-offwhite font-poppins">

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/aside/Aside.tsx
 import { useState, useEffect } from 'react';
+import '../../App.css'
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -186,7 +187,7 @@ const Aside = ({ onSelectChat }: AsideProps) => {
 
       <div className="flex-1 overflow-hidden flex flex-col">
         {/* Channels ~60% */}
-        <div className="flex-6 overflow-y-auto px-3 py-4">
+        <div className="flex-5 overflow-y-auto px-3 py-4 scroll">
           <ChatSection
             title="TEAM"
             icon={<Users className="w-3.5 h-3.5" />}
@@ -202,7 +203,7 @@ const Aside = ({ onSelectChat }: AsideProps) => {
         </div>
 
         {/* Personal ~40% */}
-        <div className="flex-4 overflow-y-auto px-3 py-4 border-t border-white/10">
+        <div className="flex-6 overflow-y-auto px-3 py-4 border-t border-white/10 scroll">
           <ChatSection
             title="PERSONAL"
             icon={<AtSign className="w-3.5 h-3.5" />}

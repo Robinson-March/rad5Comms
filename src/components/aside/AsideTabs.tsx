@@ -10,7 +10,7 @@ interface AsideTabsProps {
 
 const AsideTabs = ({ activeTab, setActiveTab, isLoading }: AsideTabsProps) => {
   return (
-    <div className="flex border-b border-white/10 mt-2 px-4">
+    <div className="flex border-b border-white/10 px-4">
       {isLoading ? (
         Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="flex-1 py-2">

@@ -13,6 +13,7 @@ import {
 import EmojiPicker from 'emoji-picker-react';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { useWebSocket } from '../../context/ws';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -26,6 +27,8 @@ const MessageInput = ({ selectedChat, onMessageSent }: MessageInputProps) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const { socket } = useWebSocket();
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pickerRef = useRef<HTMLDivElement>(null);
   const plusMenuRef = useRef<HTMLDivElement>(null);
@@ -65,7 +68,7 @@ const MessageInput = ({ selectedChat, onMessageSent }: MessageInputProps) => {
       id: Date.now().toString(), // temp ID
       sender: { id: 'me', name: 'You', avatar: null },
       text: message,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      time: new Date().toISOString(),
       isOwn: true,
     };
 
@@ -85,11 +88,15 @@ const MessageInput = ({ selectedChat, onMessageSent }: MessageInputProps) => {
         endpoint = `/channels/personal/${selectedChat.id}/messages`; // DM endpoint
       }
 
-      await axios.post(
+      const res = await axios.post(
         `${API_BASE_URL}${endpoint}`,
         { text: message }, // adjust payload as per your backend
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      const newMessage = res.data?.message || res.data;
+      if (selectedChat.type === 'channel' && newMessage && socket) {
+        socket.emit('new_message', { channelId: selectedChat.id, message: newMessage });
+      }
 
       // toast.success('Message sent!');
     } catch (err: any) {
@@ -161,7 +168,16 @@ const MessageInput = ({ selectedChat, onMessageSent }: MessageInputProps) => {
           ref={inputRef}
           type="text"
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={(e) => {
+            setMessage(e.target.value);
+            if (selectedChat?.type === 'channel' && socket) {
+              socket.emit('typing', { channelId: selectedChat.id, isTyping: true });
+              if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+              typingTimerRef.current = setTimeout(() => {
+                socket.emit('typing', { channelId: selectedChat!.id, isTyping: false });
+              }, 1500);
+            }
+          }}
           placeholder="Type a message..."
           className="flex-1 bg-transparent outline-none text-text-primary placeholder:text-text-secondary px-1 md:px-3"
           onKeyDown={(e) => {

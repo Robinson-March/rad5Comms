@@ -16,7 +16,7 @@ const AsideHeader = ({ isLoading, channels, users, onSelectChat }: AsideHeaderPr
 
   return (
     <>
-      <div className="p-4 pb-2 border-b border-white/10 flex items-center justify-between px-4">
+      <div className="p-2 pb-2 border-b border-white/10 flex items-center justify-between px-4">
         {isLoading ? (
           <>
             <div>
@@ -29,7 +29,7 @@ const AsideHeader = ({ isLoading, channels, users, onSelectChat }: AsideHeaderPr
           <>
             <div>
               <h1 className="text-xl font-bold">Rad5 Comms</h1>
-              <p className="text-sm opacity-70 mt-1">Chats</p>
+              <p className="text-sm opacity-70">Chats</p>
             </div>
             <button
               onClick={() => setIsSearchOpen(true)}

@@ -126,21 +126,29 @@ const MessageList = ({ messages = [], isLoading, selectedChat }: MessageListProp
             </span>
           </div>
 
-          {group.messages.map((msg) => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              showSenderName={selectedChat?.type === 'channel'}
-              onDelete={(msgId) => {
-                // This callback is defined in parent — safe
-              }}
-              onEdit={(msgId, newText) => {
-                // This callback is defined in parent — safe
-              }}
-              onReply={(msg) => console.log('Reply to:', msg)}
-              onForward={(msg) => console.log('Forward:', msg)}
-            />
-          ))}
+          {group.messages.map((msg) =>
+            msg.type === 'system' ? (
+              <div key={msg.id} className="flex justify-center my-2">
+                <span className="bg-gray-200 text-gray-600 text-xs font-medium px-4 py-1 rounded-full shadow-sm">
+                  {msg.text}
+                </span>
+              </div>
+            ) : (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                showSenderName={selectedChat?.type === 'channel'}
+                onDelete={(msgId) => {
+                  // This callback is defined in parent — safe
+                }}
+                onEdit={(msgId, newText) => {
+                  // This callback is defined in parent — safe
+                }}
+                onReply={(msg) => console.log('Reply to:', msg)}
+                onForward={(msg) => console.log('Forward:', msg)}
+              />
+            )
+          )}
         </div>
       ))}
       <div ref={bottomRef} />

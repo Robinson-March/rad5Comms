@@ -1,5 +1,6 @@
 // src/pages/HomePage.tsx
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import Aside from '../components/aside/Aside';
 import Main from '../components/main/Main';
 import ThreadPane from '../components/threadPane/ThreadPane';
@@ -7,6 +8,7 @@ import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 
 function HomePage() {
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1000);
   const [activeView, setActiveView] = useState<'aside' | 'main' | 'thread'>('aside');
@@ -54,10 +56,46 @@ function HomePage() {
     });
   };
 
-  const [selectedChat, setSelectedChat] = useState<ThreadPaneProps['selectedChat']>(null);
+// src/pages/HomePage.tsx
+  const [selectedChat, setSelectedChat] = useState<{
+    id: string;
+    type: 'channel' | 'dm';
+    name?: string;
+    description?: string;
+    avatar?: string;
+    memberCount?: number;
+    members?: Array<{ id: string; name: string; avatar?: string }>;
+    isAdmin?: boolean;
+  } | null>(null);
 
   const handleSelectChat = (chatId: string, type: 'channel' | 'dm', name?: string) => {
     setSelectedChat({ id: chatId, type, name });
+    if (type === 'channel') {
+      const token = localStorage.getItem('token');
+      if (token) {
+        axios
+          .get(`${API_BASE_URL}/channels/${chatId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          .then((res) => {
+            const ch = res.data?.channel || res.data || {};
+            const members = Array.isArray(ch.members) ? ch.members : [];
+            setSelectedChat({
+              id: ch.id || chatId,
+              type: 'channel',
+              name: ch.name || name,
+              description: ch.description,
+              avatar: ch.avatar,
+              memberCount: typeof ch.memberCount === 'number' ? ch.memberCount : members.length,
+              members,
+              isAdmin: ch.role === 'admin' || ch.isAdmin === true,
+            });
+          })
+          .catch(() => {
+            // keep minimal selectedChat on failure
+          });
+      }
+    }
     if (isMobile) {
       setActiveView('main');
     }
@@ -72,6 +110,32 @@ function HomePage() {
   const mobileViewClass = isMobile
     ? 'absolute inset-0 transform transition-transform duration-300 ease-in-out'
     : '';
+
+  useEffect(() => {
+    const onMemberAdded = (e: Event) => {
+      const ce = e as CustomEvent<{
+        channelId: string;
+        addedUser: { id: string; name: string; avatar?: string };
+        addedBy: { name: string };
+      }>;
+      if (!selectedChat || selectedChat.type !== 'channel') return;
+      if (selectedChat.id !== ce.detail.channelId) return;
+      const existing = Array.isArray(selectedChat.members)
+        ? (selectedChat.members as Array<{ id: string; name: string; avatar?: string }>)
+        : [];
+      const already = existing.some((m) => m.id === ce.detail.addedUser.id);
+      const nextMembers = already
+        ? existing
+        : [...existing, { id: ce.detail.addedUser.id, name: ce.detail.addedUser.name, avatar: ce.detail.addedUser.avatar }];
+      setSelectedChat({
+        ...selectedChat,
+        memberCount: (selectedChat.memberCount || existing.length) + (already ? 0 : 1),
+        members: nextMembers,
+      });
+    };
+    window.addEventListener('member-added', onMemberAdded as EventListener);
+    return () => window.removeEventListener('member-added', onMemberAdded as EventListener);
+  }, [selectedChat]);
 
   if (isPageLoading) {
     return (

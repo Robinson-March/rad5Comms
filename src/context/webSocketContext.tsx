@@ -1,44 +1,26 @@
 // src/context/WebSocketContext.tsx
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  ReactNode,
-} from 'react';
-import { io, Socket } from 'socket.io-client';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { io } from 'socket.io-client';
 import { toast } from 'sonner';
+import { WebSocketContext } from './ws';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-
-interface WebSocketContextType {
-  socket: Socket | null;
-  isConnected: boolean;
-}
-
-const WebSocketContext = createContext<WebSocketContextType>({
-  socket: null,
-  isConnected: false,
-});
 
 interface WebSocketProviderProps {
   children: ReactNode;
 }
 
 export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
-  const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
-    // Prevent duplicate connections
-    if (socketRef.current?.connected) return;
-
-    const socket = io(API_BASE_URL, {
-      auth: { token },
+  const socket = useMemo(() => {
+    if (!token) return null;
+    return io(API_BASE_URL, {
+      path: '/ws',
+      query: { token },
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 2000,
@@ -46,6 +28,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
       timeout: 20000,
       transports: ['websocket'],
     });
+  }, [token]);
+
+  useEffect(() => {
+    if (!socket) return;
 
     socket.on('connect', () => {
       console.log('🔌 WebSocket connected');
@@ -75,26 +61,28 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
       toast.error(err.message || 'Chat error occurred');
     });
 
-    socketRef.current = socket;
+    socket.on('user_presence', (data: { userId: string; status: string }) => {
+      setOnlineUsers((prev) => {
+        const set = new Set(prev);
+        if (data.status === 'online') {
+          set.add(data.userId);
+        } else {
+          set.delete(data.userId);
+        }
+        return Array.from(set);
+      });
+    });
 
     return () => {
       socket.disconnect();
-      socketRef.current = null;
       setIsConnected(false);
+      setOnlineUsers([]);
     };
-  }, []);
+  }, [socket]);
 
   return (
-    <WebSocketContext.Provider value={{ socket: socketRef.current, isConnected }}>
+    <WebSocketContext.Provider value={{ socket, isConnected, onlineUsers }}>
       {children}
     </WebSocketContext.Provider>
   );
-};
-
-export const useWebSocket = () => {
-  const context = useContext(WebSocketContext);
-  if (!context) {
-    throw new Error('useWebSocket must be used within a WebSocketProvider');
-  }
-  return context;
 };
