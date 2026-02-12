@@ -10,7 +10,7 @@ function App() {
   return (
     <BrowserRouter>
       <Toaster 
-          position="top-right"           // or "top-center", "bottom-right", etc.
+          position="bottom-right"
           richColors                     // enables colorful toasts (blue for success, red for error)
           closeButton                    // shows X button
           toastOptions={{

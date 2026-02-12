@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 import { toast } from 'sonner';
 import { WebSocketContext } from './ws';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_API_WEBHOOK_URL || 'http://localhost:3000';
 
 interface WebSocketProviderProps {
   children: ReactNode;
@@ -18,7 +18,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
 
   const socket = useMemo(() => {
     if (!token) return null;
-    return io(API_BASE_URL, {
+    return io(  API_BASE_URL, {
       path: '/ws',
       query: { token },
       reconnection: true,

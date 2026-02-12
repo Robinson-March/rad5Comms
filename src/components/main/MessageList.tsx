@@ -25,6 +25,24 @@ const MessageList = ({ messages = [], isLoading, selectedChat }: MessageListProp
     }
   }, [messages, selectedChat, isLoading]);
 
+  useEffect(() => {
+    if (!containerRef.current || !bottomRef.current || !selectedChat) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry && entry.isIntersecting) {
+          const ev = new CustomEvent('chat-read', {
+            detail: { chatId: selectedChat.id, type: selectedChat.type },
+          });
+          window.dispatchEvent(ev);
+        }
+      },
+      { root: containerRef.current, threshold: 1.0 }
+    );
+    observer.observe(bottomRef.current);
+    return () => observer.disconnect();
+  }, [selectedChat, messages, isLoading]);
+
   if (isLoading) {
     return (
       <div className="flex-1 overflow-y-scroll px-6 py-4 space-y-6 scroll">

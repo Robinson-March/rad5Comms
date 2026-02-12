@@ -13,6 +13,7 @@ import NewConversationModal from './NewConversationModal';
 // import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import { AtSign, Moon, Plus, Users } from 'lucide-react';
+import { useWebSocket } from '../../context/ws';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -71,7 +72,6 @@ const Aside = ({ onSelectChat }: AsideProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
 
@@ -79,6 +79,7 @@ const Aside = ({ onSelectChat }: AsideProps) => {
   const [showNewConversationModal, setShowNewConversationModal] = useState(false);
 
   const navigate = useNavigate();
+  const { socket } = useWebSocket();
 
   // Fetch current user ID (to exclude self from DMs)
   useEffect(() => {
@@ -109,7 +110,6 @@ const Aside = ({ onSelectChat }: AsideProps) => {
       }
 
       setIsLoading(true);
-      setError(null);
 
       try {
         const [channelsRes, usersRes] = await Promise.all([
@@ -139,6 +139,41 @@ const Aside = ({ onSelectChat }: AsideProps) => {
 
     fetchData();
   }, [navigate]);
+
+  useEffect(() => {
+    if (!socket) return;
+    channels.forEach((ch) => socket.emit('join_channel', { channelId: ch.id }));
+    const onNewMessage = (data: any) => {
+      const { channelId, message } = data || {};
+      if (!channelId || !message) return;
+      setChannels((prev) =>
+        prev.map((ch) =>
+          ch.id === channelId ? { ...ch, unread: (ch.unread || 0) + 1 } : ch
+        )
+      );
+      const ch = channels.find((c) => c.id === channelId);
+      const preview =
+        typeof message.text === 'string'
+          ? message.text.slice(0, 60)
+          : '[message]';
+      toast.info(`${ch?.name || 'New message'}: ${preview}`);
+    };
+    socket.on('new_message', onNewMessage);
+    return () => {
+      socket.off('new_message', onNewMessage);
+    };
+  }, [socket, channels]);
+
+  useEffect(() => {
+    const onChatRead = (e: Event) => {
+      const ce = e as CustomEvent<{ chatId: string; type: 'channel' | 'dm' }>;
+      const { chatId } = ce.detail;
+      setChannels((prev) => prev.map((ch) => (ch.id === chatId ? { ...ch, unread: 0 } : ch)));
+      setUsers((prev) => prev.map((u) => (u.id === chatId ? { ...u, unread: 0 } : u)));
+    };
+    window.addEventListener('chat-read', onChatRead as EventListener);
+    return () => window.removeEventListener('chat-read', onChatRead as EventListener);
+  }, []);
 
   // Filter logic
   const filteredChannels = channels.filter((ch) => {

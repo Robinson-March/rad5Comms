@@ -130,7 +130,7 @@ const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProp
     };
     window.addEventListener('member-added', onMemberAdded as EventListener);
     return () => window.removeEventListener('member-added', onMemberAdded as EventListener);
-  }, [selectedChat]);
+  }, [selectedChat?.id, selectedChat?.type]);
 
   const handleMessageSent = (newMessage: Message) => {
     setMessages((prev) => [...prev, newMessage]);
