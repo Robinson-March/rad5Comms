@@ -38,24 +38,6 @@ function App() {
             borderRadius: "12px",
             padding: "12px 16px",
           },
-          success: {
-            style: {
-              background: "#10b981", // green success
-              color: "white",
-            },
-          },
-          error: {
-            style: {
-              background: "#ef4444", // red error
-              color: "white",
-            },
-          },
-          loading: {
-            style: {
-              background: "#3b82f6", // blue loading
-              color: "white",
-            },
-          },
         }}
       />
       <Routes>

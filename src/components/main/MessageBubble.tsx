@@ -92,7 +92,7 @@ const MessageBubble = ({
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
-      toast.success("Reaction added!");
+      // toast.success("Reaction added!");
       setShowEmojiPicker(false);
       if (socket && channelId) {
         socket.emit("reaction_update", {

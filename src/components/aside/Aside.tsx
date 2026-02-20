@@ -10,7 +10,6 @@ import AsideTabs from './AsideTabs';
 import ChatSection from './ChatSection';
 import CreateChannelModal from './CreateChannelModal';
 import NewConversationModal from './NewConversationModal';
-// import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import { AtSign, Moon, Plus, Users } from 'lucide-react';
 import { useWebSocket } from '../../context/ws';
@@ -18,7 +17,12 @@ import { useWebSocket } from '../../context/ws';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface AsideProps {
-  onSelectChat?: (chatId: string, type: 'channel' | 'dm', name?: string) => void;
+  onSelectChat?: (
+    chatId: string,
+    type: 'channel' | 'dm',
+    name?: string,
+    extra?: { avatar?: string; description?: string; bio?: string; memberCount?: number }
+  ) => void;
 }
 
 interface Channel {
@@ -125,7 +129,6 @@ const Aside = ({ onSelectChat }: AsideProps) => {
         setUsers(usersRes.data?.users || []);
       } catch (err: any) {
         const msg = err.response?.data?.error || 'Failed to load data';
-        setError(msg);
         toast.error(msg);
 
         if (err.response?.status === 401 || err.response?.status === 403) {
@@ -207,16 +210,40 @@ const Aside = ({ onSelectChat }: AsideProps) => {
 
   const handleSelectChat = (chatId: string, type: 'channel' | 'dm', name?: string) => {
     setSelectedChatId(chatId);
-    onSelectChat?.(chatId, type, name);
+
+    // Find full data from current lists for immediate use
+    let extraData: { avatar?: string; description?: string; bio?: string; memberCount?: number } | undefined;
+
+    if (type === 'channel') {
+      const channel = channels.find((ch) => ch.id === chatId);
+      if (channel) {
+        extraData = {
+          avatar: channel.avatar,
+          description: channel.description,
+          memberCount: channel.members?.length,
+        };
+      }
+    } else {
+      const user = users.find((u) => u.id === chatId);
+      if (user) {
+        extraData = {
+          avatar: user.avatar,
+          bio: user.bio,
+        };
+      }
+    }
+
+    onSelectChat?.(chatId, type, name, extraData);
   };
 
   return (
     <div className="font-poppins h-screen sm:w-auto lg:w-[280px] min-w-[260px] bg-sidebar text-sidebar-text flex flex-col">
-      <AsideHeader isLoading={isLoading}
-      channels={channels}
-      users={users}
-      onSelectChat={handleSelectChat}
-    />
+      <AsideHeader
+        isLoading={isLoading}
+        channels={channels}
+        users={users}
+        onSelectChat={handleSelectChat}
+      />
 
       <AsideTabs activeTab={activeTab} setActiveTab={setActiveTab} isLoading={isLoading} />
 
@@ -228,12 +255,12 @@ const Aside = ({ onSelectChat }: AsideProps) => {
             icon={<Users className="w-3.5 h-3.5" />}
             items={filteredChannels}
             type="channel"
-            onSelectChat={handleSelectChat} // ← use handler
+            onSelectChat={handleSelectChat}
             onPlusClick={() => setShowCreateChannelModal(true)}
             emptyMessage="No channels yet. Click + to create one!"
             activeTab={activeTab}
-            onActionSuccess={(updated) => handleActionSuccess(updated, true)}
-            selectedChatId={selectedChatId} // ← pass current selected ID
+            onActionSuccess={(updated: any) => handleActionSuccess(updated, true)}
+            selectedChatId={selectedChatId ?? undefined}
           />
         </div>
 
@@ -244,11 +271,11 @@ const Aside = ({ onSelectChat }: AsideProps) => {
             icon={<AtSign className="w-3.5 h-3.5" />}
             items={filteredUsers}
             type="dm"
-            onSelectChat={handleSelectChat} // ← use handler
+            onSelectChat={handleSelectChat}
             emptyMessage="No direct messages yet"
             activeTab={activeTab}
             onActionSuccess={(updated) => handleActionSuccess(updated, false)}
-            selectedChatId={selectedChatId} // ← pass current selected ID
+            selectedChatId={selectedChatId ?? undefined}
           />
         </div>
       </div>
@@ -274,7 +301,7 @@ const Aside = ({ onSelectChat }: AsideProps) => {
       <NewConversationModal
         isOpen={showNewConversationModal}
         onClose={() => setShowNewConversationModal(false)}
-        onSelectChat={handleSelectChat} // ← use handler here too
+        onSelectChat={handleSelectChat}
       />
     </div>
   );
