@@ -13,27 +13,33 @@ import {
 import EmojiPicker from 'emoji-picker-react';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { useWebSocket } from '../../context/ws';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface MessageInputProps {
   selectedChat: { id: string; type: 'channel' | 'dm'; name?: string } | null;
-  onMessageSent?: (newMessage: any) => void; // callback to add message to list
+  onMessageSent?: (newMessage: any) => void;
   replyTarget?: {
     id: string;
     text: string;
     sender: { id: string; name: string };
   } | null;
   onCancelReply?: () => void;
+  /** Emit typing indicator via socket */
+  sendTyping?: (isTyping: boolean) => void;
 }
 
-const MessageInput = ({ selectedChat, onMessageSent, replyTarget, onCancelReply }: MessageInputProps) => {
+const MessageInput = ({
+  selectedChat,
+  onMessageSent,
+  replyTarget,
+  onCancelReply,
+  sendTyping,
+}: MessageInputProps) => {
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const { socket } = useWebSocket();
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -55,13 +61,7 @@ const MessageInput = ({ selectedChat, onMessageSent, replyTarget, onCancelReply 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // const handleEmojiClick = (emojiData: any) => {
-  //   setMessage((prev) => prev + emojiData.emoji);
-  //   setShowEmojiPicker(false);
-  //   inputRef.current?.focus();
-  // };
-
-  // Placeholder handlers (you can expand later)
+  // Placeholder handlers
   const handleAttachFile = () => console.log('Attach file');
   const handleVoiceNote = () => console.log('Voice note');
   const handleShareImage = () => console.log('Share image');
@@ -70,10 +70,12 @@ const MessageInput = ({ selectedChat, onMessageSent, replyTarget, onCancelReply 
   const handleSend = async () => {
     if (!message.trim() || !selectedChat || isSending) return;
 
+    const textToSend = message;
+
     const optimisticMessage = {
-      id: Date.now().toString(), // temp ID
+      id: Date.now().toString(),
       sender: { id: 'me', name: 'You', avatar: null },
-      text: message,
+      text: textToSend,
       time: new Date().toISOString(),
       isOwn: true,
       ...(replyTarget && {
@@ -97,29 +99,36 @@ const MessageInput = ({ selectedChat, onMessageSent, replyTarget, onCancelReply 
       if (selectedChat.type === 'channel') {
         endpoint = `/channels/${selectedChat.id}/messages`;
       } else {
-        endpoint = `/dms/${selectedChat.id}/messages`; // DM endpoint
+        endpoint = `/dms/${selectedChat.id}/messages`;
       }
 
-      const res = await axios.post(
+      // Just POST to REST — server broadcasts to socket room automatically
+      await axios.post(
         `${API_BASE_URL}${endpoint}`,
-        { text: message, replyTo: replyTarget?.id }, // adjust payload as per your backend
+        { text: textToSend, replyTo: replyTarget?.id },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      const newMessage = res.data?.message || res.data;
-      if (selectedChat.type === 'channel' && newMessage && socket) {
-        socket.emit('new_message', { channelId: selectedChat.id, message: newMessage });
-      }
-
-      // toast.success('Message sent!');
+      // No client-side relay needed — server handles the broadcast
     } catch (err: any) {
+      console.error('[MessageInput] Send error:', err);
       toast.error(err.response?.data?.error || 'Failed to send message');
-      // Optional: rollback optimistic message here
     } finally {
       setIsSending(false);
     }
   };
 
-  if (!selectedChat) return null; // Hide input completely when no chat
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMessage(e.target.value);
+    if (selectedChat && sendTyping) {
+      sendTyping(true);
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = setTimeout(() => {
+        sendTyping(false);
+      }, 1500);
+    }
+  };
+
+  if (!selectedChat) return null;
 
   return (
     <div className="border-t border-border bg-gray-300 px-1 py-2 relative flex flex-col items-center justify-center">
@@ -196,16 +205,7 @@ const MessageInput = ({ selectedChat, onMessageSent, replyTarget, onCancelReply 
           ref={inputRef}
           type="text"
           value={message}
-          onChange={(e) => {
-            setMessage(e.target.value);
-            if (selectedChat && socket) {
-              socket.emit('typing', { channelId: selectedChat.id, isTyping: true });
-              if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-              typingTimerRef.current = setTimeout(() => {
-                socket.emit('typing', { channelId: selectedChat!.id, isTyping: false });
-              }, 1500);
-            }
-          }}
+          onChange={handleInputChange}
           placeholder="Type a message..."
           className="flex-1 bg-transparent outline-none text-text-primary placeholder:text-text-secondary px-1 md:px-3"
           onKeyDown={(e) => {
@@ -248,4 +248,4 @@ const MessageInput = ({ selectedChat, onMessageSent, replyTarget, onCancelReply 
   );
 };
 
-export default MessageInput; 
+export default MessageInput;

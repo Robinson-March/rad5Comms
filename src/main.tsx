@@ -5,9 +5,9 @@ import App from './App.tsx'
 import { WebSocketProvider } from './context/webSocketContext.tsx';
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+
     <WebSocketProvider>
       <App />
     </WebSocketProvider>
-  </StrictMode>,
+
 )
