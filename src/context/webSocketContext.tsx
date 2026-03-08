@@ -1,7 +1,36 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-const WS_BASE_URL = import.meta.env.VITE_API_WEBHOOK_URL;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const WS_PATH = normalizeSocketPath(import.meta.env.VITE_SOCKET_PATH || '/ws');
+const WS_BASE_URL =
+  normalizeBaseUrl(import.meta.env.VITE_API_WEBHOOK_URL) ||
+  normalizeBaseUrl(import.meta.env.VITE_WS_BASE_URL) ||
+  deriveSocketBaseUrl(API_BASE_URL) ||
+  getBrowserOrigin();
+
+function normalizeBaseUrl(value?: string): string | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().replace(/\/+$/, '');
+  return normalized || undefined;
+}
+
+function normalizeSocketPath(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '/ws';
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+}
+
+function deriveSocketBaseUrl(apiBaseUrl?: string): string | undefined {
+  const normalized = normalizeBaseUrl(apiBaseUrl);
+  if (!normalized) return undefined;
+  return normalized.replace(/\/api$/i, '');
+}
+
+function getBrowserOrigin(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  return normalizeBaseUrl(window.location.origin);
+}
 
 export interface WebSocketContextType {
   socket: Socket | null;
@@ -37,9 +66,8 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
 
       if (isConnecting) return;
 
-      // Reuse existing connected socket for same token
       if (globalSocket && globalSocketToken === token && globalSocket.connected) {
-        console.log('🔌 Reusing existing WebSocket connection, id:', globalSocket.id);
+        console.log('[socket] Reusing existing connection', { id: globalSocket.id });
         if (mountedRef.current) {
           setSocketState(globalSocket);
           setIsConnected(true);
@@ -47,7 +75,6 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
         return;
       }
 
-      // Disconnect existing socket if token changed or disconnected
       if (globalSocket) {
         globalSocket.removeAllListeners();
         globalSocket.disconnect();
@@ -64,13 +91,28 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
         return;
       }
 
-      console.log('🔌 Creating WebSocket connection to', WS_BASE_URL);
+      if (!WS_BASE_URL) {
+        console.error(
+          '[socket] Missing base URL. Set VITE_API_WEBHOOK_URL or VITE_WS_BASE_URL, or make sure VITE_API_BASE_URL is defined.'
+        );
+        if (mountedRef.current) {
+          setSocketState(null);
+          setIsConnected(false);
+        }
+        return;
+      }
+
+      console.log('[socket] Connecting', {
+        baseUrl: WS_BASE_URL,
+        path: WS_PATH,
+        hasToken: Boolean(token),
+      });
       isConnecting = true;
 
       const newSocket = io(WS_BASE_URL, {
-        path: '/ws',
+        path: WS_PATH,
         query: { token },
-        transports: ['websocket'],
+        transports: ['polling', 'websocket'],
         reconnection: true,
         reconnectionAttempts: Infinity,
         reconnectionDelay: 1000,
@@ -79,25 +121,53 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
       });
 
       newSocket.on('connect', () => {
-        console.log('🔌 WebSocket connected, id:', newSocket.id, '| transport:', newSocket.io.engine?.transport?.name);
+        console.log('[socket] Connected', {
+          id: newSocket.id,
+          transport: newSocket.io.engine?.transport?.name,
+          baseUrl: WS_BASE_URL,
+          path: WS_PATH,
+        });
         isConnecting = false;
         if (mountedRef.current) {
           setIsConnected(true);
-          setSocketState(newSocket); // ← set AFTER connected, not before
+          setSocketState(newSocket);
         }
       });
 
       newSocket.onAny((eventName: string, ...args: unknown[]) => {
-        console.log(`📨 [socket event] ${eventName}:`, ...args);
+        console.log(`[socket event] ${eventName}:`, ...args);
       });
 
-      newSocket.on('connect_error', (err) => {
-        console.error('🔌 WebSocket connection error:', err.message);
-        isConnecting = false;
+      newSocket.on(
+        'connect_error',
+        (err: Error & { description?: unknown; context?: unknown; data?: unknown }) => {
+          console.error('[socket] Connection error', {
+            message: err.message,
+            description: err.description,
+            data: err.data,
+            context: err.context,
+            baseUrl: WS_BASE_URL,
+            path: WS_PATH,
+            transport: newSocket.io.engine?.transport?.name,
+          });
+          isConnecting = false;
+        }
+      );
+
+      newSocket.io.on('reconnect_attempt', (attempt) => {
+        console.log('[socket] Reconnect attempt', {
+          attempt,
+          baseUrl: WS_BASE_URL,
+          path: WS_PATH,
+        });
+      });
+
+      newSocket.io.on('reconnect_error', (err) => {
+        console.error('[socket] Reconnect error', err);
       });
 
       newSocket.on('disconnect', (reason) => {
-        console.log('🔌 WebSocket disconnected:', reason);
+        console.log('[socket] Disconnected', { reason });
         if (mountedRef.current) setIsConnected(false);
       });
 
@@ -105,24 +175,27 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
         if (mountedRef.current) setOnlineUsers(users);
       });
 
-      newSocket.on('user_presence', ({ userId, status }: { userId: string; status: 'online' | 'offline' }) => {
-        if (!mountedRef.current) return;
-        setOnlineUsers((prev) => {
-          if (status === 'online' && !prev.includes(userId)) return [...prev, userId];
-          if (status === 'offline') return prev.filter((id) => id !== userId);
-          return prev;
-        });
-      });
+      newSocket.on(
+        'user_presence',
+        ({ userId, status }: { userId: string; status: 'online' | 'offline' }) => {
+          if (!mountedRef.current) return;
+          setOnlineUsers((prev) => {
+            if (status === 'online' && !prev.includes(userId)) return [...prev, userId];
+            if (status === 'offline') return prev.filter((id) => id !== userId);
+            return prev;
+          });
+        }
+      );
 
-      newSocket.on('unread_update', ({ type, dmId, senderId }: { type: string; dmId?: string; senderId?: string }) => {
-        window.dispatchEvent(
-          new CustomEvent('unread-update', { detail: { type, dmId, senderId } })
-        );
-      });
+      newSocket.on(
+        'unread_update',
+        ({ type, dmId, senderId }: { type: string; dmId?: string; senderId?: string }) => {
+          window.dispatchEvent(new CustomEvent('unread-update', { detail: { type, dmId, senderId } }));
+        }
+      );
 
       globalSocket = newSocket;
       globalSocketToken = token;
-      // NOTE: do NOT setSocketState here — wait for 'connect' event above
     };
 
     connectSocket();
