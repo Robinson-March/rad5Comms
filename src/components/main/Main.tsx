@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/main/Main.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import '../../App.css';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -40,7 +40,6 @@ interface Message {
   status?: 'sent' | 'delivered' | 'read';
 }
 
-// Helper to apply a reaction update to message list
 const applyReaction = (messages: Message[], messageId: string, emoji: string, action: string): Message[] =>
   messages.map((m) => {
     if (m.id !== messageId) return m;
@@ -53,20 +52,129 @@ const applyReaction = (messages: Message[], messageId: string, emoji: string, ac
         return { ...m, reactions: next };
       }
       return { ...m, reactions: [...existing, { emoji, count: 1 }] };
-    } else {
-      if (idx >= 0) {
-        const next = [...existing];
-        const newCount = next[idx].count - 1;
-        if (newCount <= 0) {
-          next.splice(idx, 1);
-        } else {
-          next[idx] = { emoji, count: newCount };
-        }
-        return { ...m, reactions: next };
-      }
-      return m;
     }
+
+    if (idx >= 0) {
+      const next = [...existing];
+      const newCount = next[idx].count - 1;
+      if (newCount <= 0) {
+        next.splice(idx, 1);
+      } else {
+        next[idx] = { emoji, count: newCount };
+      }
+      return { ...m, reactions: next };
+    }
+
+    return m;
   });
+
+const normalizeMessage = (
+  rawMessage: any,
+  currentUserId: string | null,
+  overrides: Partial<Message> = {}
+): Message => {
+  const sender = rawMessage?.sender || {};
+  const senderId = String(
+    sender.id ??
+      rawMessage?.senderId ??
+      rawMessage?.userId ??
+      rawMessage?.fromId ??
+      overrides.sender?.id ??
+      ''
+  );
+  const senderName =
+    sender.name ??
+    rawMessage?.senderName ??
+    rawMessage?.userName ??
+    rawMessage?.fromName ??
+    overrides.sender?.name ??
+    'Unknown';
+  const senderAvatar =
+    sender.avatar ?? rawMessage?.senderAvatar ?? rawMessage?.avatar ?? overrides.sender?.avatar;
+  const rawTime =
+    rawMessage?.time ?? rawMessage?.createdAt ?? rawMessage?.updatedAt ?? overrides.time ?? new Date().toISOString();
+  const replyTo =
+    rawMessage?.replyTo ?? rawMessage?.reply_to ?? rawMessage?.replyId ?? rawMessage?.reply_id ?? undefined;
+  const resolvedTime =
+    typeof rawTime === 'string' ? rawTime : new Date(rawTime).toISOString();
+
+  const normalized: Message = {
+    id: String(rawMessage?.id ?? overrides.id ?? Date.now()),
+    sender: {
+      id: senderId,
+      name: senderName,
+      ...(senderAvatar ? { avatar: senderAvatar } : {}),
+    },
+    text: String(rawMessage?.text ?? overrides.text ?? ''),
+    time: resolvedTime,
+    isOwn:
+      typeof rawMessage?.isOwn === 'boolean'
+        ? rawMessage.isOwn
+        : typeof overrides.isOwn === 'boolean'
+          ? overrides.isOwn
+          : Boolean(currentUserId && senderId && currentUserId === senderId),
+    hasImage: rawMessage?.hasImage ?? overrides.hasImage,
+    hasAudio: rawMessage?.hasAudio ?? overrides.hasAudio,
+    duration: rawMessage?.duration ?? overrides.duration,
+    type: rawMessage?.type ?? overrides.type ?? 'user',
+    replyTo: replyTo ? String(replyTo) : overrides.replyTo,
+    replyToText:
+      rawMessage?.replyToText ?? rawMessage?.reply_to_text ?? overrides.replyToText,
+    replyToSender:
+      rawMessage?.replyToSender ?? rawMessage?.reply_to_sender ?? overrides.replyToSender,
+    reactions: rawMessage?.reactions ?? overrides.reactions,
+    status: rawMessage?.status ?? overrides.status,
+  };
+
+  return normalized;
+};
+
+const normalizeMessageList = (rawMessages: any[], currentUserId: string | null): Message[] => {
+  const safeMessages = Array.isArray(rawMessages) ? rawMessages : [];
+  const byId = new Map<string, any>(safeMessages.map((message) => [String(message.id), message]));
+
+  return safeMessages.map((message) => {
+    const replyTo = message.replyTo ?? message.reply_to ?? message.replyId ?? message.reply_id;
+    const replyTarget = replyTo ? byId.get(String(replyTo)) : null;
+
+    return normalizeMessage(message, currentUserId, {
+      replyTo: replyTo ? String(replyTo) : undefined,
+      replyToText:
+        message.replyToText ?? message.reply_to_text ?? replyTarget?.text ?? undefined,
+      replyToSender:
+        message.replyToSender ??
+        message.reply_to_sender ??
+        replyTarget?.sender?.name ??
+        replyTarget?.senderName ??
+        undefined,
+    });
+  });
+};
+
+const mergeMessages = (existing: Message[], incoming: Message[]): Message[] => {
+  const next = new Map<string, Message>();
+
+  existing.forEach((message) => {
+    next.set(String(message.id), message);
+  });
+
+  incoming.forEach((message) => {
+    const key = String(message.id);
+    const previous = next.get(key);
+    next.set(
+      key,
+      previous
+        ? {
+            ...previous,
+            ...message,
+            sender: { ...previous.sender, ...message.sender },
+          }
+        : message
+    );
+  });
+
+  return Array.from(next.values());
+};
 
 const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -74,19 +182,36 @@ const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProp
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
   const [forwardSource, setForwardSource] = useState<Message | null>(null);
-  const { onlineUsers } = useWebSocket();
+  const { onlineUsers, transport } = useWebSocket();
   const [isPeerTyping, setIsPeerTyping] = useState(false);
-
-  // For DMs: the actual conversation ID resolved from the backend (≠ recipient user ID)
   const [resolvedDmId, setResolvedDmId] = useState<string | undefined>(undefined);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  // Determine which ID to pass into each hook
   const channelId = selectedChat?.type === 'channel' ? selectedChat.id : undefined;
   const dmId = selectedChat?.type === 'dm' ? resolvedDmId : undefined;
 
-  // Shared event callbacks — server broadcasts these automatically on REST calls
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    axios
+      .get(`${API_BASE_URL}/users/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((response) => {
+        const userId = response.data?.id || response.data?.user?.id || null;
+        setCurrentUserId(userId ? String(userId) : null);
+      })
+      .catch((err) => {
+        console.warn('[Main] Failed to resolve current user id', err);
+      });
+  }, []);
+
   const sharedCallbacks = {
-    onMessage: (msg: any) => setMessages((prev) => [...prev, msg]),
+    onMessage: (msg: any) => {
+      const normalized = normalizeMessage(msg, currentUserId);
+      setMessages((prev) => mergeMessages(prev, [normalized]));
+    },
     onEdited: (messageId: string, text: string) =>
       setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, text } : m))),
     onDeleted: (messageId: string) =>
@@ -104,38 +229,77 @@ const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProp
     },
   };
 
-  // Hooks: server broadcasts events; hooks only expose sendTyping + markRead
   const { sendTyping: channelSendTyping, markRead: channelMarkRead } =
     useChannel(channelId, sharedCallbacks);
 
   const { sendTyping: dmSendTyping, markRead: dmMarkRead } =
     useDm(dmId, sharedCallbacks);
 
-  // Unified functions based on chat type
   const sendTyping = selectedChat?.type === 'channel' ? channelSendTyping : dmSendTyping;
 
-  // Reset state when chat changes
   useEffect(() => {
     setIsPeerTyping(false);
     setResolvedDmId(undefined);
+    setReplyTarget(null);
   }, [selectedChat?.id]);
 
-  // Fetch messages
-  useEffect(() => {
-    if (!selectedChat) {
-      setMessages([]);
-      setIsLoadingMessages(false);
-      return;
-    }
+  const resolveDmConversationId = useCallback(
+    async (recipientId: string, token: string) => {
+      let conversationId: string | null = null;
 
-    const initAndFetchMessages = async () => {
+      try {
+        const createResponse = await axios.post(
+          `${API_BASE_URL}/dms/${recipientId}`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        conversationId =
+          createResponse.data?.dm?.id ||
+          createResponse.data?.id ||
+          createResponse.data?.dmId ||
+          null;
+      } catch (createErr: any) {
+        if (createErr.response?.status === 409 || createErr.response?.status === 400) {
+          const errData = createErr.response?.data;
+          conversationId =
+            errData?.dm?.id ||
+            errData?.id ||
+            errData?.dmId ||
+            errData?.existingDmId ||
+            null;
+        } else {
+          throw createErr;
+        }
+      }
+
+      if (!conversationId) {
+        const getResponse = await axios.get(`${API_BASE_URL}/dms/${recipientId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        conversationId =
+          getResponse.data?.dm?.id || getResponse.data?.id || getResponse.data?.dmId || null;
+      }
+
+      return conversationId || recipientId;
+    },
+    []
+  );
+
+  const fetchChatMessages = useCallback(
+    async (showSpinner = true) => {
+      if (!selectedChat) {
+        setMessages([]);
+        setIsLoadingMessages(false);
+        return;
+      }
+
       const token = localStorage.getItem('token');
       if (!token) {
         toast.error('Please log in');
         return;
       }
 
-      setIsLoadingMessages(true);
+      if (showSpinner) setIsLoadingMessages(true);
 
       try {
         let chatId = selectedChat.id;
@@ -144,76 +308,21 @@ const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProp
         if (selectedChat.type === 'channel') {
           endpointBase = `/channels/${chatId}`;
         } else {
-          // DM: resolve the actual conversation ID (≠ recipient user ID)
-          let conversationId: string | null = null;
-
-          try {
-            const createRes = await axios.post(
-              `${API_BASE_URL}/dms/${selectedChat.id}`,
-              {},
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-            conversationId =
-              createRes.data?.dm?.id ||
-              createRes.data?.id ||
-              createRes.data?.dmId ||
-              null;
-          } catch (createErr: any) {
-            if (createErr.response?.status === 409 || createErr.response?.status === 400) {
-              const errData = createErr.response?.data;
-              conversationId =
-                errData?.dm?.id || errData?.id || errData?.dmId || errData?.existingDmId || null;
-            } else {
-              throw createErr;
-            }
-          }
-
-          // Fallback: try GET /dms/:recipientId
-          if (!conversationId) {
-            try {
-              const getRes = await axios.get(
-                `${API_BASE_URL}/dms/${selectedChat.id}`,
-                { headers: { Authorization: `Bearer ${token}` } }
-              );
-              conversationId =
-                getRes.data?.dm?.id || getRes.data?.id || getRes.data?.dmId || null;
-            } catch {
-              // ignore
-            }
-          }
-
-          chatId = conversationId || selectedChat.id;
+          chatId = await resolveDmConversationId(selectedChat.id, token);
           endpointBase = `/dms/${chatId}`;
-
-          console.log('[Main] resolved DM conversation ID:', chatId, '(recipient:', selectedChat.id, ')');
           setResolvedDmId(chatId);
+          console.log('[Main] resolved DM conversation ID:', chatId, '(recipient:', selectedChat.id, ')');
         }
 
-        // Fetch messages
         const response = await axios.get(`${API_BASE_URL}${endpointBase}/messages`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        const data = response.data?.messages || response.data || [];
-        const raw = Array.isArray(data) ? data : [];
-        const idMap = new Map<string, any>(raw.map((m: any) => [String(m.id), m]));
-        const normalized = raw.map((m: any) => {
-          const rt = m.replyTo ?? m.reply_to ?? m.reply_id ?? m.parentMessageId ?? m.parent_id;
-          if (rt) {
-            const ref = idMap.get(String(rt));
-            return {
-              ...m,
-              replyTo: String(rt),
-              replyToText: m.replyToText ?? ref?.text ?? m.reply_to_text ?? null,
-              replyToSender: m.replyToSender ?? ref?.sender?.name ?? m.reply_to_sender ?? null,
-            };
-          }
-          return m;
-        });
-        setMessages(normalized);
+        const rawMessages = response.data?.messages || response.data || [];
+        const normalizedMessages = normalizeMessageList(rawMessages, currentUserId);
+        setMessages(normalizedMessages);
 
-        // Mark all fetched messages as read
-        const messageIds = normalized.map((m: any) => m.id);
+        const messageIds = normalizedMessages.map((message) => message.id);
         if (messageIds.length > 0) {
           if (selectedChat.type === 'channel') {
             channelMarkRead(messageIds);
@@ -224,18 +333,33 @@ const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProp
       } catch (err: any) {
         console.error('Chat init/fetch error:', err);
         const msg = err.response?.data?.error || 'Failed to load or initialize chat';
-        toast.error(msg);
+        if (showSpinner) {
+          toast.error(msg);
+        }
 
         if (err.response?.status === 404) {
           setMessages([]);
         }
       } finally {
-        setIsLoadingMessages(false);
+        if (showSpinner) setIsLoadingMessages(false);
       }
-    };
+    },
+    [selectedChat, resolveDmConversationId, currentUserId, channelMarkRead, dmMarkRead]
+  );
 
-    initAndFetchMessages();
-  }, [selectedChat]);
+  useEffect(() => {
+    fetchChatMessages(true);
+  }, [fetchChatMessages]);
+
+  useEffect(() => {
+    if (!selectedChat || transport === 'websocket') return;
+
+    const intervalId = window.setInterval(() => {
+      fetchChatMessages(false);
+    }, 3000);
+
+    return () => window.clearInterval(intervalId);
+  }, [selectedChat, transport, fetchChatMessages]);
 
   useEffect(() => {
     const onStartReply = (e: Event) => {
@@ -278,11 +402,22 @@ const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProp
   }, [selectedChat?.id, selectedChat?.type, selectedChat]);
 
   const handleMessageSent = (newMessage: Message) => {
-    setMessages((prev) => [...prev, newMessage]);
+    setMessages((prev) => mergeMessages(prev, [newMessage]));
     setReplyTarget(null);
   };
 
-  // Local reaction handler (from MessageBubble custom events)
+  const handleMessageConfirmed = (temporaryId: string, confirmedMessage: any) => {
+    const normalized = normalizeMessage(confirmedMessage, currentUserId, { isOwn: true });
+    setMessages((prev) => {
+      const withoutTemporary = prev.filter((message) => message.id !== temporaryId);
+      return mergeMessages(withoutTemporary, [normalized]);
+    });
+  };
+
+  const handleMessageFailed = (temporaryId: string) => {
+    setMessages((prev) => prev.filter((message) => message.id !== temporaryId));
+  };
+
   useEffect(() => {
     const onLocalReaction = (e: Event) => {
       const ce = e as CustomEvent<{ messageId: string; emoji: string; action: 'added' | 'removed' }>;
@@ -317,7 +452,11 @@ const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProp
             />
             <MessageInput
               selectedChat={selectedChat}
+              dmConversationId={resolvedDmId}
               onMessageSent={handleMessageSent}
+              onMessageConfirmed={handleMessageConfirmed}
+              onMessageFailed={handleMessageFailed}
+              onSyncRequested={() => fetchChatMessages(false)}
               replyTarget={replyTarget}
               onCancelReply={() => setReplyTarget(null)}
               sendTyping={sendTyping}
@@ -325,16 +464,16 @@ const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProp
           </>
         )}
 
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-      />
-      <ForwardModal
-        isOpen={Boolean(forwardSource)}
-        onClose={() => setForwardSource(null)}
-        sourceMessage={forwardSource ? { id: forwardSource.id, text: forwardSource.text } : null}
-      />
-    </div>
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+        />
+        <ForwardModal
+          isOpen={Boolean(forwardSource)}
+          onClose={() => setForwardSource(null)}
+          sourceMessage={forwardSource ? { id: forwardSource.id, text: forwardSource.text } : null}
+        />
+      </div>
     </div>
   );
 };

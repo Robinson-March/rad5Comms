@@ -36,12 +36,14 @@ export interface WebSocketContextType {
   socket: Socket | null;
   isConnected: boolean;
   onlineUsers: string[];
+  transport: string | null;
 }
 
 export const WebSocketContext = createContext<WebSocketContextType>({
   socket: null,
   isConnected: false,
   onlineUsers: [],
+  transport: null,
 });
 
 interface WebSocketProviderProps {
@@ -56,10 +58,17 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
   const [isConnected, setIsConnected] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [socketState, setSocketState] = useState<Socket | null>(null);
+  const [transport, setTransport] = useState<string | null>(null);
   const mountedRef = useRef(true);
 
   useEffect(() => {
     mountedRef.current = true;
+
+    const setTransportState = (value: string | null) => {
+      if (mountedRef.current) {
+        setTransport(value);
+      }
+    };
 
     const connectSocket = () => {
       const token = localStorage.getItem('token');
@@ -67,10 +76,12 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
       if (isConnecting) return;
 
       if (globalSocket && globalSocketToken === token && globalSocket.connected) {
-        console.log('[socket] Reusing existing connection', { id: globalSocket.id });
+        const currentTransport = globalSocket.io.engine?.transport?.name || null;
+        console.log('[socket] Reusing existing connection', { id: globalSocket.id, transport: currentTransport });
         if (mountedRef.current) {
           setSocketState(globalSocket);
           setIsConnected(true);
+          setTransport(currentTransport);
         }
         return;
       }
@@ -87,6 +98,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
           setSocketState(null);
           setIsConnected(false);
           setOnlineUsers([]);
+          setTransport(null);
         }
         return;
       }
@@ -98,6 +110,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
         if (mountedRef.current) {
           setSocketState(null);
           setIsConnected(false);
+          setTransport(null);
         }
         return;
       }
@@ -120,10 +133,16 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
         timeout: 20000,
       });
 
+      newSocket.io.engine.on('upgrade', (upgradedTransport) => {
+        console.log('[socket] Transport upgraded', { transport: upgradedTransport.name });
+        setTransportState(upgradedTransport.name);
+      });
+
       newSocket.on('connect', () => {
+        const currentTransport = newSocket.io.engine?.transport?.name || null;
         console.log('[socket] Connected', {
           id: newSocket.id,
-          transport: newSocket.io.engine?.transport?.name,
+          transport: currentTransport,
           baseUrl: WS_BASE_URL,
           path: WS_PATH,
         });
@@ -131,6 +150,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
         if (mountedRef.current) {
           setIsConnected(true);
           setSocketState(newSocket);
+          setTransport(currentTransport);
         }
       });
 
@@ -168,7 +188,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
 
       newSocket.on('disconnect', (reason) => {
         console.log('[socket] Disconnected', { reason });
-        if (mountedRef.current) setIsConnected(false);
+        if (mountedRef.current) {
+          setIsConnected(false);
+          setTransport(newSocket.io.engine?.transport?.name || null);
+        }
       });
 
       newSocket.on('online_users', (users: string[]) => {
@@ -210,7 +233,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
   }, []);
 
   return (
-    <WebSocketContext.Provider value={{ socket: socketState, isConnected, onlineUsers }}>
+    <WebSocketContext.Provider value={{ socket: socketState, isConnected, onlineUsers, transport }}>
       {children}
     </WebSocketContext.Provider>
   );

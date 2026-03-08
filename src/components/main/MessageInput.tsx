@@ -18,20 +18,27 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 interface MessageInputProps {
   selectedChat: { id: string; type: 'channel' | 'dm'; name?: string } | null;
+  dmConversationId?: string;
   onMessageSent?: (newMessage: any) => void;
+  onMessageConfirmed?: (temporaryId: string, confirmedMessage: any) => void;
+  onMessageFailed?: (temporaryId: string) => void;
+  onSyncRequested?: () => void;
   replyTarget?: {
     id: string;
     text: string;
     sender: { id: string; name: string };
   } | null;
   onCancelReply?: () => void;
-  /** Emit typing indicator via socket */
   sendTyping?: (isTyping: boolean) => void;
 }
 
 const MessageInput = ({
   selectedChat,
+  dmConversationId,
   onMessageSent,
+  onMessageConfirmed,
+  onMessageFailed,
+  onSyncRequested,
   replyTarget,
   onCancelReply,
   sendTyping,
@@ -46,7 +53,6 @@ const MessageInput = ({
   const plusMenuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Close pickers on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
@@ -61,23 +67,55 @@ const MessageInput = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Placeholder handlers
   const handleAttachFile = () => console.log('Attach file');
   const handleVoiceNote = () => console.log('Voice note');
   const handleShareImage = () => console.log('Share image');
   const handleCreatePoll = () => console.log('Create poll');
 
+  const sendDmMessage = async (token: string, text: string, temporaryId: string) => {
+    const candidateIds = Array.from(
+      new Set([selectedChat?.id, dmConversationId].filter((value): value is string => Boolean(value)))
+    );
+
+    let lastError: any;
+
+    for (const candidateId of candidateIds) {
+      try {
+        return await axios.post(
+          `${API_BASE_URL}/dms/${candidateId}/messages`,
+          { text, replyTo: replyTarget?.id },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      } catch (err: any) {
+        lastError = err;
+        const status = err.response?.status;
+        const shouldTryNextCandidate = candidateIds.length > 1 && (status === 400 || status === 404);
+        console.warn('[MessageInput] DM send attempt failed', {
+          candidateId,
+          temporaryId,
+          status,
+          message: err.message,
+        });
+        if (shouldTryNextCandidate) continue;
+        throw err;
+      }
+    }
+
+    throw lastError || new Error('Failed to send DM');
+  };
+
   const handleSend = async () => {
     if (!message.trim() || !selectedChat || isSending) return;
 
     const textToSend = message;
-
+    const temporaryId = `tmp-${Date.now()}`;
     const optimisticMessage = {
-      id: Date.now().toString(),
+      id: temporaryId,
       sender: { id: 'me', name: 'You', avatar: null },
       text: textToSend,
       time: new Date().toISOString(),
       isOwn: true,
+      status: 'sent' as const,
       ...(replyTarget && {
         replyTo: replyTarget.id,
         replyToText: replyTarget.text,
@@ -85,32 +123,33 @@ const MessageInput = ({
       }),
     };
 
-    // Optimistic UI: show message immediately
     onMessageSent?.(optimisticMessage);
     setMessage('');
     setIsSending(true);
-    if (onCancelReply) onCancelReply();
+    onCancelReply?.();
 
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token');
 
-      let endpoint = '';
-      if (selectedChat.type === 'channel') {
-        endpoint = `/channels/${selectedChat.id}/messages`;
-      } else {
-        endpoint = `/dms/${selectedChat.id}/messages`;
-      }
+      const response =
+        selectedChat.type === 'channel'
+          ? await axios.post(
+              `${API_BASE_URL}/channels/${selectedChat.id}/messages`,
+              { text: textToSend, replyTo: replyTarget?.id },
+              { headers: { Authorization: `Bearer ${token}` } }
+            )
+          : await sendDmMessage(token, textToSend, temporaryId);
 
-      // Just POST to REST — server broadcasts to socket room automatically
-      await axios.post(
-        `${API_BASE_URL}${endpoint}`,
-        { text: textToSend, replyTo: replyTarget?.id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      // No client-side relay needed — server handles the broadcast
+      const confirmedMessage = response.data?.message || response.data?.data || response.data;
+      if (confirmedMessage && typeof confirmedMessage === 'object') {
+        onMessageConfirmed?.(temporaryId, confirmedMessage);
+      } else {
+        onSyncRequested?.();
+      }
     } catch (err: any) {
       console.error('[MessageInput] Send error:', err);
+      onMessageFailed?.(temporaryId);
       toast.error(err.response?.data?.error || 'Failed to send message');
     } finally {
       setIsSending(false);
