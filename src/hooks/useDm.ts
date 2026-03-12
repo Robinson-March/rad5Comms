@@ -1,6 +1,33 @@
 'use client';
-import { useEffect, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useWebSocket } from '../context/webSocketContext';
+
+const readPathValue = (source: any, path: string) =>
+  path.split('.').reduce((value, key) => (value == null ? undefined : value[key]), source);
+
+const extractRoomId = (payload: any, keys: string[]): string | undefined => {
+  const sources = [payload, payload?.message, payload?.data, payload?.payload];
+
+  for (const source of sources) {
+    if (!source) {
+      continue;
+    }
+
+    for (const key of keys) {
+      const value = readPathValue(source, key);
+      if (value != null && value !== '') {
+        return String(value);
+      }
+    }
+  }
+
+  return undefined;
+};
+
+const matchesRoom = (payload: any, roomId: string, keys: string[]) => {
+  const incomingRoomId = extractRoomId(payload, keys);
+  return !incomingRoomId || incomingRoomId === roomId;
+};
 
 export function useDm(
   dmId: string | undefined,
@@ -18,20 +45,57 @@ export function useDm(
   onEventRef.current = onEvent;
 
   useEffect(() => {
-    if (!socket || !dmId || !isConnected) return;
+    if (!socket || !dmId || !isConnected) {
+      return;
+    }
 
-    console.log('[useDm] joining dm:', dmId);
     socket.emit('join_dm', { dmId });
 
-    const onMessage = ({ message }: any) => {
+    const onMessage = (payload: any) => {
+      if (!matchesRoom(payload, dmId, ['dmId', 'dm.id'])) {
+        return;
+      }
+      const message = payload?.message ?? payload;
       onEventRef.current.onMessage?.(message);
-      socket.emit('dm_messages_delivered', { dmId, messageIds: [message.id] });
     };
-    const onEdited = ({ messageId, text }: any) => onEventRef.current.onEdited?.(messageId, text);
-    const onDeleted = ({ messageId }: any) => onEventRef.current.onDeleted?.(messageId);
-    const onTyping = ({ userId, isTyping }: any) => onEventRef.current.onTyping?.(userId, isTyping);
-    const onStatusUpdate = (data: any) => onEventRef.current.onStatusUpdate?.(data);
-    const onReaction = (data: any) => onEventRef.current.onReaction?.(data);
+
+    const onEdited = (payload: any) => {
+      if (!matchesRoom(payload, dmId, ['dmId', 'dm.id'])) {
+        return;
+      }
+      onEventRef.current.onEdited?.(String(payload?.messageId ?? payload?.id ?? ''), payload?.text);
+    };
+
+    const onDeleted = (payload: any) => {
+      if (!matchesRoom(payload, dmId, ['dmId', 'dm.id'])) {
+        return;
+      }
+      const messageId = String(payload?.messageId ?? payload?.id ?? '');
+      if (messageId) {
+        onEventRef.current.onDeleted?.(messageId);
+      }
+    };
+
+    const onTyping = (payload: any) => {
+      if (!matchesRoom(payload, dmId, ['dmId', 'dm.id'])) {
+        return;
+      }
+      onEventRef.current.onTyping?.(String(payload?.userId ?? payload?.senderId ?? ''), Boolean(payload?.isTyping));
+    };
+
+    const onStatusUpdate = (payload: any) => {
+      if (!matchesRoom(payload, dmId, ['dmId', 'dm.id'])) {
+        return;
+      }
+      onEventRef.current.onStatusUpdate?.(payload);
+    };
+
+    const onReaction = (payload: any) => {
+      if (!matchesRoom(payload, dmId, ['dmId', 'dm.id'])) {
+        return;
+      }
+      onEventRef.current.onReaction?.(payload);
+    };
 
     socket.on('new_dm_message', onMessage);
     socket.on('dm_message_edited', onEdited);
@@ -49,17 +113,26 @@ export function useDm(
       socket.off('dm_message_status_update', onStatusUpdate);
       socket.off('dm_reaction_update', onReaction);
     };
-  }, [socket, dmId, isConnected]); // isConnected triggers re-run after connect
+  }, [socket, dmId, isConnected]);
 
   const sendTyping = useCallback(
-    (isTyping: boolean) => socket?.emit('dm_typing', { dmId, isTyping }),
+    (isTyping: boolean) => {
+      socket?.emit('dm_typing', { dmId, isTyping });
+    },
     [socket, dmId]
   );
 
   const markRead = useCallback(
-    (messageIds: string[]) => socket?.emit('dm_messages_read', { dmId, messageIds }),
+    (messageIds: string[]) => {
+      if (!messageIds.length) {
+        return;
+      }
+      socket?.emit('dm_messages_read', { dmId, messageIds });
+    },
     [socket, dmId]
   );
 
   return { sendTyping, markRead };
 }
+
+

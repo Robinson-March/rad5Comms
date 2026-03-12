@@ -210,12 +210,17 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
         }
       );
 
-      newSocket.on(
-        'unread_update',
-        ({ type, dmId, senderId }: { type: string; dmId?: string; senderId?: string }) => {
-          window.dispatchEvent(new CustomEvent('unread-update', { detail: { type, dmId, senderId } }));
-        }
-      );
+      newSocket.on('unread_update', (payload: Record<string, unknown>) => {
+        window.dispatchEvent(new CustomEvent('unread-update', { detail: payload }));
+      });
+
+      newSocket.on('channel_created', (payload: Record<string, unknown>) => {
+        window.dispatchEvent(new CustomEvent('channel-created', { detail: payload }));
+      });
+
+      newSocket.on('dm_created', (payload: Record<string, unknown>) => {
+        window.dispatchEvent(new CustomEvent('dm-created', { detail: payload }));
+      });
 
       globalSocket = newSocket;
       globalSocketToken = token;
@@ -240,3 +245,6 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
 };
 
 export const useWebSocket = () => useContext(WebSocketContext);
+
+
+

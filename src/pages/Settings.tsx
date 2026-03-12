@@ -1,25 +1,35 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/settings/SettingsModal.tsx
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import '../App.css';
-import { X, User, Camera, Mail, Loader2 } from 'lucide-react';
+import { Camera, Loader2, Mail, User, X } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+type SettingsTab = 'profile' | 'notifications' | 'privacy';
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  defaultTab?: SettingsTab;
 }
 
-const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'privacy'>('profile');
+const switchTrackClass =
+  'relative h-6 w-11 rounded-full bg-slate-200 transition peer-checked:bg-blue peer-focus:ring-4 peer-focus:ring-blue/20';
+const switchThumbClass =
+  "after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-slate-200 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-5";
+const inputClass =
+  'w-full rounded-2xl border border-border bg-panel px-4 py-3 text-sm text-text-primary outline-none transition placeholder:text-text-secondary/70 focus:border-blue/30 focus:ring-4 focus:ring-blue/10';
+const labelClass = 'mb-2 block text-sm font-medium text-text-primary';
+
+const SettingsModal = ({ isOpen, onClose, defaultTab = 'profile' }: SettingsModalProps) => {
+  const [activeTab, setActiveTab] = useState<SettingsTab>(defaultTab);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -34,16 +44,26 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const objectUrlRef = useRef<string | null>(null);
 
-  // Fetch current user data on modal open
   useEffect(() => {
-    if (!isOpen) return;
+    if (isOpen) {
+      setActiveTab(defaultTab);
+    }
+  }, [defaultTab, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
 
     const fetchUserData = async () => {
       setIsLoading(true);
       try {
         const token = localStorage.getItem('token');
-        if (!token) throw new Error('No token');
+        if (!token) {
+          throw new Error('No token');
+        }
 
         const res = await axios.get(`${API_BASE_URL}/users/me`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -51,8 +71,9 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
 
         const user = res.data?.user || res.data;
 
-        // Use avatar directly from /users/me response
+        setAvatarFile(null);
         setAvatarPreview(user.avatar || null);
+        objectUrlRef.current = null;
 
         setFormData({
           name: user.name || '',
@@ -74,11 +95,15 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
     };
 
     fetchUserData();
-
-    return () => {
-      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
-    };
   }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+      }
+    };
+  }, []);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -91,14 +116,12 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
 
     try {
       if (activeTab === 'profile') {
-        // Update profile
         await axios.put(
           `${API_BASE_URL}/users/profile`,
           { name: formData.name, email: formData.email, bio: formData.bio },
           { headers: { Authorization: `Bearer ${token}` } }
         );
 
-        // Upload avatar if changed
         if (avatarFile) {
           const formDataAvatar = new FormData();
           formDataAvatar.append('avatar', avatarFile);
@@ -112,6 +135,11 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
         }
 
         toast.success('Profile updated');
+        window.dispatchEvent(
+          new CustomEvent('profile-updated', {
+            detail: { name: formData.name, avatar: avatarPreview || null },
+          })
+        );
       } else if (activeTab === 'privacy') {
         await axios.put(
           `${API_BASE_URL}/users/privacy`,
@@ -124,7 +152,7 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
           { headers: { Authorization: `Bearer ${token}` } }
         );
         toast.success('Privacy settings updated');
-      } else if (activeTab === 'notifications') {
+      } else {
         await axios.put(
           `${API_BASE_URL}/users/notifications`,
           {
@@ -143,220 +171,224 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return null;
+  }
 
   return (
-    <div className="font-poppins fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-sidebar text-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-3">
-          <h2 className="text-xl font-semibold text-white">Settings</h2>
+    <div className="font-poppins fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-md">
+      <div className="animate-pop-in flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border border-white/80 bg-white/95 shadow-[0_32px_90px_rgba(15,23,42,0.22)]">
+        <div className="flex items-center justify-between border-b border-border/80 px-6 py-5">
+          <div>
+            <h2 className="text-2xl font-semibold text-text-primary">Settings</h2>
+            <p className="mt-1 text-sm text-text-secondary">Manage your profile, notifications, and privacy.</p>
+          </div>
           <button
             onClick={onClose}
-            className="p-2 cursor-pointer rounded-full hover:bg-blue-600 transition"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-panel-muted text-text-secondary transition duration-300 hover:-translate-y-0.5 hover:border-blue/30 hover:bg-blue-soft hover:text-blue cursor-pointer"
+            type="button"
+            aria-label="Close settings"
           >
-            <X className="h-5 w-5 text-white" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex px-6">
-          <button
-            onClick={() => setActiveTab('profile')}
-            className={`flex-1 py-3 cursor-pointer text-sm font-medium transition-colors ${
-              activeTab === 'profile'
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'text-gray-300 hover:text-gray-500'
-            }`}
-          >
-            Profile
-          </button>
-          <button
-            onClick={() => setActiveTab('notifications')}
-            className={`flex-1 py-3 text-sm cursor-pointer font-medium transition-colors ${
-              activeTab === 'notifications'
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'text-gray-300 hover:text-gray-500'
-            }`}
-          >
-            Notifications
-          </button>
-          <button
-            onClick={() => setActiveTab('privacy')}
-            className={`flex-1 py-3 text-sm cursor-pointer font-medium transition-colors ${
-              activeTab === 'privacy'
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'text-gray-300 hover:text-gray-500'
-            }`}
-          >
-            Privacy
-          </button>
+        <div className="border-b border-border/80 px-4 py-3">
+          <div className="grid grid-cols-3 gap-2 rounded-2xl bg-panel-muted p-1">
+            {(['profile', 'notifications', 'privacy'] as SettingsTab[]).map((tab) => {
+              const isActive = activeTab === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`rounded-xl px-4 py-3 text-sm font-medium capitalize transition duration-300 cursor-pointer ${
+                    isActive
+                      ? 'bg-white text-text-primary shadow-[0_14px_28px_rgba(148,163,184,0.18)]'
+                      : 'text-text-secondary hover:text-text-primary'
+                  }`}
+                  type="button"
+                >
+                  {tab}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto scroll p-6 space-y-6">
+        <div className="scroll flex-1 overflow-y-auto px-6 py-6">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-              <p className="mt-4 text-gray-400">Loading profile...</p>
+            <div className="flex h-64 flex-col items-center justify-center text-text-secondary">
+              <Loader2 className="h-8 w-8 animate-spin text-blue" />
+              <p className="mt-4 text-sm">Loading your settings...</p>
             </div>
           ) : (
             <>
-              {/* Profile Tab */}
               {activeTab === 'profile' && (
                 <div className="space-y-6">
-                  {/* Avatar */}
-                  <div className="flex flex-col items-center">
-                    <div className="relative">
-                      <div className="w-24 h-24 rounded-full bg-gray-200 overflow-hidden border-4 border-white shadow-md">
-                        {avatarPreview ? (
-                          <img
-                            src={avatarPreview}
-                            alt="Profile"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-blue-300 flex items-center justify-center text-white text-2xl font-bold">
-                            {formData.name?.charAt(0) || 'U'}
-                          </div>
-                        )}
+                  <div className="rounded-[28px] border border-border bg-panel-muted/70 p-6">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="relative">
+                        <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-blue-soft text-3xl font-semibold text-blue shadow-[0_20px_40px_rgba(37,99,235,0.16)]">
+                          {avatarPreview ? (
+                            <img src={avatarPreview} alt="Profile" className="h-full w-full object-cover" />
+                          ) : (
+                            formData.name?.charAt(0)?.toUpperCase() || 'U'
+                          )}
+                        </div>
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          className="absolute bottom-1 right-1 inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue text-white shadow-[0_14px_28px_rgba(37,99,235,0.28)] transition duration-300 hover:scale-[1.03] hover:bg-blue-dark cursor-pointer"
+                          type="button"
+                          aria-label="Change profile picture"
+                        >
+                          <Camera className="h-4 w-4" />
+                        </button>
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) {
+                              return;
+                            }
+
+                            if (objectUrlRef.current) {
+                              URL.revokeObjectURL(objectUrlRef.current);
+                            }
+
+                            const previewUrl = URL.createObjectURL(file);
+                            objectUrlRef.current = previewUrl;
+                            setAvatarFile(file);
+                            setAvatarPreview(previewUrl);
+                          }}
+                        />
                       </div>
                       <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full shadow-lg hover:bg-blue-700 transition"
+                        className="mt-4 text-sm font-medium text-blue transition hover:text-blue-dark cursor-pointer"
+                        type="button"
                       >
-                        <Camera size={16} />
+                        Change profile picture
                       </button>
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            setAvatarFile(file);
-                            setAvatarPreview(URL.createObjectURL(file));
-                          }
-                        }}
-                      />
                     </div>
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="mt-3 text-sm text-white hover:underline"
-                    >
-                      Change profile picture
-                    </button>
                   </div>
 
-                  {/* Form fields */}
-                  <div className="space-y-4 text-sm lg:text-normal">
+                  <div className="grid gap-5">
                     <div>
-                      <label className="block text-sm font-medium text-gray-200 mb-1">Full Name</label>
+                      <label className={labelClass}>Full Name</label>
                       <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                        <User className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
                         <input
                           name="name"
                           value={formData.name}
                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-transparent text-white"
+                          className={`${inputClass} pl-11`}
+                          placeholder="Your full name"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-200 mb-1">Email</label>
+                      <label className={labelClass}>Email</label>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                        <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
                         <input
                           name="email"
                           value={formData.email}
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-transparent text-white"
+                          className={`${inputClass} pl-11`}
+                          placeholder="you@example.com"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-200 mb-1">Bio / Status</label>
+                      <label className={labelClass}>Bio / Status</label>
                       <textarea
                         name="bio"
                         value={formData.bio}
                         onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                        rows={3}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none bg-transparent text-white"
+                        rows={4}
+                        className={`${inputClass} resize-none`}
+                        placeholder="Tell people a little about yourself"
                       />
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Notifications Tab */}
               {activeTab === 'notifications' && (
-                <div className="space-y-6 text-sm lg:text-normal">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium text-gray-200">Message notifications</h3>
-                      <p className="text-sm text-gray-500">Get notified for new messages</p>
+                <div className="space-y-4">
+                  <div className="rounded-[24px] border border-border bg-panel p-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-sm font-semibold text-text-primary">Message notifications</h3>
+                        <p className="mt-1 text-sm text-text-secondary">Get notified when someone messages you directly.</p>
+                      </div>
+                      <label className="relative inline-flex cursor-pointer items-center">
+                        <input
+                          type="checkbox"
+                          name="messageNotifications"
+                          checked={formData.messageNotifications}
+                          onChange={(e) => setFormData({ ...formData, messageNotifications: e.target.checked })}
+                          className="peer sr-only"
+                        />
+                        <div className={`${switchTrackClass} ${switchThumbClass}`} />
+                      </label>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        name="messageNotifications"
-                        checked={formData.messageNotifications}
-                        onChange={(e) => setFormData({ ...formData, messageNotifications: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium text-gray-200">Group chat notifications</h3>
-                      <p className="text-sm text-gray-500">For mentions and replies</p>
+                  <div className="rounded-[24px] border border-border bg-panel p-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-sm font-semibold text-text-primary">Group chat notifications</h3>
+                        <p className="mt-1 text-sm text-text-secondary">Stay on top of mentions, replies, and team updates.</p>
+                      </div>
+                      <label className="relative inline-flex cursor-pointer items-center">
+                        <input
+                          type="checkbox"
+                          name="groupNotifications"
+                          checked={formData.groupNotifications}
+                          onChange={(e) => setFormData({ ...formData, groupNotifications: e.target.checked })}
+                          className="peer sr-only"
+                        />
+                        <div className={`${switchTrackClass} ${switchThumbClass}`} />
+                      </label>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        name="groupNotifications"
-                        checked={formData.groupNotifications}
-                        onChange={(e) => setFormData({ ...formData, groupNotifications: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium text-gray-200">Sound & vibration</h3>
-                      <p className="text-sm text-gray-500">Play sound for new messages</p>
+                  <div className="rounded-[24px] border border-border bg-panel p-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-sm font-semibold text-text-primary">Sound and vibration</h3>
+                        <p className="mt-1 text-sm text-text-secondary">Play a sound when new activity comes in.</p>
+                      </div>
+                      <label className="relative inline-flex cursor-pointer items-center">
+                        <input
+                          type="checkbox"
+                          name="soundVibration"
+                          checked={formData.soundVibration}
+                          onChange={(e) => setFormData({ ...formData, soundVibration: e.target.checked })}
+                          className="peer sr-only"
+                        />
+                        <div className={`${switchTrackClass} ${switchThumbClass}`} />
+                      </label>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        name="soundVibration"
-                        checked={formData.soundVibration}
-                        onChange={(e) => setFormData({ ...formData, soundVibration: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
                   </div>
                 </div>
               )}
 
-              {/* Privacy Tab */}
               {activeTab === 'privacy' && (
-                <div className="space-y-6 text-sm lg:text-normal">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-2">Who can see my last seen</label>
+                <div className="space-y-5">
+                  <div className="rounded-[24px] border border-border bg-panel p-5">
+                    <label className={labelClass}>Who can see my last seen</label>
                     <select
                       name="lastSeen"
                       value={formData.lastSeen}
                       onChange={(e) => setFormData({ ...formData, lastSeen: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-transparent text-white"
+                      className={inputClass}
                     >
                       <option value="everyone">Everyone</option>
                       <option value="contacts">My contacts</option>
@@ -364,13 +396,13 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-2">Who can see my profile photo</label>
+                  <div className="rounded-[24px] border border-border bg-panel p-5">
+                    <label className={labelClass}>Who can see my profile photo</label>
                     <select
                       name="profileVisibility"
                       value={formData.profileVisibility}
                       onChange={(e) => setFormData({ ...formData, profileVisibility: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-transparent text-white"
+                      className={inputClass}
                     >
                       <option value="everyone">Everyone</option>
                       <option value="contacts">My contacts</option>
@@ -378,38 +410,42 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
                     </select>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium text-gray-200">Read receipts</h3>
-                      <p className="text-sm text-gray-500">Show when you've read messages</p>
+                  <div className="rounded-[24px] border border-border bg-panel p-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-sm font-semibold text-text-primary">Read receipts</h3>
+                        <p className="mt-1 text-sm text-text-secondary">Show when you have read messages.</p>
+                      </div>
+                      <label className="relative inline-flex cursor-pointer items-center">
+                        <input
+                          type="checkbox"
+                          name="readReceipts"
+                          checked={formData.readReceipts}
+                          onChange={(e) => setFormData({ ...formData, readReceipts: e.target.checked })}
+                          className="peer sr-only"
+                        />
+                        <div className={`${switchTrackClass} ${switchThumbClass}`} />
+                      </label>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        name="readReceipts"
-                        checked={formData.readReceipts}
-                        onChange={(e) => setFormData({ ...formData, readReceipts: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium text-gray-200">Typing indicators</h3>
-                      <p className="text-sm text-gray-500">Show when you're typing</p>
+                  <div className="rounded-[24px] border border-border bg-panel p-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-sm font-semibold text-text-primary">Typing indicators</h3>
+                        <p className="mt-1 text-sm text-text-secondary">Let people know when you are typing.</p>
+                      </div>
+                      <label className="relative inline-flex cursor-pointer items-center">
+                        <input
+                          type="checkbox"
+                          name="typingIndicators"
+                          checked={formData.typingIndicators}
+                          onChange={(e) => setFormData({ ...formData, typingIndicators: e.target.checked })}
+                          className="peer sr-only"
+                        />
+                        <div className={`${switchTrackClass} ${switchThumbClass}`} />
+                      </label>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        name="typingIndicators"
-                        checked={formData.typingIndicators}
-                        onChange={(e) => setFormData({ ...formData, typingIndicators: e.target.checked })}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
                   </div>
                 </div>
               )}
@@ -417,18 +453,19 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t flex justify-end gap-3 text-sm lg:text-normal">
+        <div className="flex items-center justify-end gap-3 border-t border-border/80 bg-white/80 px-6 py-4">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 text-gray-300 hover:bg-red-600 cursor-pointer rounded-lg transition"
+            className="rounded-full border border-border bg-panel px-5 py-2.5 text-sm font-medium text-text-secondary transition duration-300 hover:border-blue/30 hover:text-text-primary cursor-pointer"
+            type="button"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer transition disabled:opacity-70 flex items-center gap-2"
+            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue to-blue-dark px-6 py-2.5 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(37,99,235,0.24)] transition duration-300 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
+            type="button"
           >
             {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
             {isSaving ? 'Saving...' : 'Save Changes'}

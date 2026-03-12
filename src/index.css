@@ -1,31 +1,65 @@
 @import "tailwindcss";
 
-
 @theme {
-
-  /* Core colors – your requested palette */
-  --color-white:          #ffffff;
-  --color-offwhite:       #f9fafb;     /* very light surface / main bg */
-  --color-light-red:      #ef4444;     /* primary accent – mentions, unread, errors */
-  --color-light-red-soft: #f87171;     /* softer variant – subtle highlights, hovers */
-  --color-blue:           #2563eb;     /* primary blue – buttons, links, selected */
-  --color-blue-dark:      #1d4ed8;     /* hover/focus/active states on blue */
-
-  /* Supporting neutrals (highly recommended for readability & polish) */
-  --color-text-primary:   #111827;     /* dark text on light bg */
-  --color-text-secondary: #4b5563;     /* muted text, subtitles */
-  --color-border:         #e5e7eb;     /* light borders */
-  --color-sidebar:        #0f172a;     /* dark slate sidebar background */
-  --color-sidebar-text:   #ffffff;     /* text/icons on sidebar */
-
-  /* Optional: more shades if you need them later (e.g. for gradients or states) */
-  --color-blue-700:       #1d4ed8;
-  --color-blue-600:       #2563eb;
-  --color-red-500:        #ef4444;
-  --color-red-400:        #f87171;
-  
+  --color-white: #ffffff;
+  --color-offwhite: #eef3fb;
+  --color-light-red: #ef4444;
+  --color-light-red-soft: #fca5a5;
+  --color-blue: #2563eb;
+  --color-blue-dark: #1d4ed8;
+  --color-blue-soft: #dbeafe;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #64748b;
+  --color-border: #d8e2f0;
+  --color-sidebar: #f7faff;
+  --color-sidebar-text: #0f172a;
+  --color-panel: #ffffff;
+  --color-panel-muted: #f8fbff;
+  --color-panel-strong: #edf4ff;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
 }
 
 @theme {
   --font-poppins: Poppins, sans-serif;
+}
+
+:root {
+  color: var(--color-text-primary);
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.14), transparent 28%),
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 26%),
+    linear-gradient(180deg, #f4f8ff 0%, #edf3fb 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-poppins);
+  color: var(--color-text-primary);
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 24%),
+    radial-gradient(circle at 85% 10%, rgba(96, 165, 250, 0.12), transparent 22%),
+    linear-gradient(180deg, #f4f8ff 0%, #eaf1fb 100%);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.18);
 }

@@ -1,6 +1,33 @@
 'use client';
-import { useEffect, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useWebSocket } from '../context/webSocketContext';
+
+const readPathValue = (source: any, path: string) =>
+  path.split('.').reduce((value, key) => (value == null ? undefined : value[key]), source);
+
+const extractRoomId = (payload: any, keys: string[]): string | undefined => {
+  const sources = [payload, payload?.message, payload?.data, payload?.payload];
+
+  for (const source of sources) {
+    if (!source) {
+      continue;
+    }
+
+    for (const key of keys) {
+      const value = readPathValue(source, key);
+      if (value != null && value !== '') {
+        return String(value);
+      }
+    }
+  }
+
+  return undefined;
+};
+
+const matchesRoom = (payload: any, roomId: string, keys: string[]) => {
+  const incomingRoomId = extractRoomId(payload, keys);
+  return !incomingRoomId || incomingRoomId === roomId;
+};
 
 export function useChannel(
   channelId: string | undefined,
@@ -19,21 +46,64 @@ export function useChannel(
   onEventRef.current = onEvent;
 
   useEffect(() => {
-    if (!socket || !channelId || !isConnected) return;
+    if (!socket || !channelId || !isConnected) {
+      return;
+    }
 
-    console.log('[useChannel] joining channel:', channelId);
     socket.emit('join_channel', { channelId });
 
-    const onMessage = ({ message }: any) => {
+    const onMessage = (payload: any) => {
+      if (!matchesRoom(payload, channelId, ['channelId', 'channel.id'])) {
+        return;
+      }
+      const message = payload?.message ?? payload;
       onEventRef.current.onMessage?.(message);
-      socket.emit('messages_delivered', { channelId, messageIds: [message.id] });
     };
-    const onEdited = ({ messageId, text }: any) => onEventRef.current.onEdited?.(messageId, text);
-    const onDeleted = ({ messageId }: any) => onEventRef.current.onDeleted?.(messageId);
-    const onTyping = ({ userId, isTyping }: any) => onEventRef.current.onTyping?.(userId, isTyping);
-    const onStatusUpdate = (data: any) => onEventRef.current.onStatusUpdate?.(data);
-    const onReaction = (data: any) => onEventRef.current.onReaction?.(data);
-    const onPollUpdate = (data: any) => onEventRef.current.onPollUpdate?.(data);
+
+    const onEdited = (payload: any) => {
+      if (!matchesRoom(payload, channelId, ['channelId', 'channel.id'])) {
+        return;
+      }
+      onEventRef.current.onEdited?.(String(payload?.messageId ?? payload?.id ?? ''), payload?.text);
+    };
+
+    const onDeleted = (payload: any) => {
+      if (!matchesRoom(payload, channelId, ['channelId', 'channel.id'])) {
+        return;
+      }
+      const messageId = String(payload?.messageId ?? payload?.id ?? '');
+      if (messageId) {
+        onEventRef.current.onDeleted?.(messageId);
+      }
+    };
+
+    const onTyping = (payload: any) => {
+      if (!matchesRoom(payload, channelId, ['channelId', 'channel.id'])) {
+        return;
+      }
+      onEventRef.current.onTyping?.(String(payload?.userId ?? payload?.senderId ?? ''), Boolean(payload?.isTyping));
+    };
+
+    const onStatusUpdate = (payload: any) => {
+      if (!matchesRoom(payload, channelId, ['channelId', 'channel.id'])) {
+        return;
+      }
+      onEventRef.current.onStatusUpdate?.(payload);
+    };
+
+    const onReaction = (payload: any) => {
+      if (!matchesRoom(payload, channelId, ['channelId', 'channel.id'])) {
+        return;
+      }
+      onEventRef.current.onReaction?.(payload);
+    };
+
+    const onPollUpdate = (payload: any) => {
+      if (!matchesRoom(payload, channelId, ['channelId', 'channel.id'])) {
+        return;
+      }
+      onEventRef.current.onPollUpdate?.(payload);
+    };
 
     socket.on('new_message', onMessage);
     socket.on('message_edited', onEdited);
@@ -53,17 +123,26 @@ export function useChannel(
       socket.off('reaction_update', onReaction);
       socket.off('poll_update', onPollUpdate);
     };
-  }, [socket, channelId, isConnected]); // isConnected triggers re-run after connect
+  }, [socket, channelId, isConnected]);
 
   const sendTyping = useCallback(
-    (isTyping: boolean) => socket?.emit('typing', { channelId, isTyping }),
+    (isTyping: boolean) => {
+      socket?.emit('typing', { channelId, isTyping });
+    },
     [socket, channelId]
   );
 
   const markRead = useCallback(
-    (messageIds: string[]) => socket?.emit('messages_read', { channelId, messageIds }),
+    (messageIds: string[]) => {
+      if (!messageIds.length) {
+        return;
+      }
+      socket?.emit('messages_read', { channelId, messageIds });
+    },
     [socket, channelId]
   );
 
   return { sendTyping, markRead };
 }
+
+

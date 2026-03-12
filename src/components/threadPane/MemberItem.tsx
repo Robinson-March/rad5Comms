@@ -1,4 +1,4 @@
-// components/thread-pane/MemberItem.tsx
+// components/threadPane/MemberItem.tsx
 import { MoreVertical } from 'lucide-react';
 
 interface MemberItemProps {
@@ -8,24 +8,24 @@ interface MemberItemProps {
 
 const MemberItem = ({ member, isAdmin }: MemberItemProps) => {
   return (
-    <div className="flex items-center justify-between py-2 px-3 hover:bg-white/10 rounded-lg group">
+    <div className="group flex items-center justify-between rounded-2xl bg-panel-muted px-3 py-3 transition hover:bg-panel-strong">
       <div className="flex items-center gap-3">
         {member.avatar ? (
-          <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-full object-cover" />
+          <img src={member.avatar} alt={member.name} className="h-11 w-11 rounded-2xl object-cover" />
         ) : (
-          <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-600 font-medium">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-sm font-semibold text-text-primary">
             {member.name.charAt(0).toUpperCase()}
           </div>
         )}
         <div>
-          <p className="font-medium text-white">{member.name}</p>
-          {member.role && <p className="text-xs text-gray-400">{member.role}</p>}
+          <p className="text-sm font-semibold text-text-primary">{member.name}</p>
+          <p className="mt-1 text-xs text-text-secondary">{member.role || 'Member'}</p>
         </div>
       </div>
 
       {isAdmin && (
-        <button className="opacity-0 group-hover:opacity-100 transition p-2 rounded-full hover:bg-white/10">
-          <MoreVertical className="w-4 h-4 text-text-secondary" />
+        <button className="flex h-9 w-9 items-center justify-center rounded-full text-text-secondary opacity-0 transition group-hover:opacity-100 hover:bg-white cursor-pointer">
+          <MoreVertical className="h-4 w-4" />
         </button>
       )}
     </div>

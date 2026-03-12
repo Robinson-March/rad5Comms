@@ -1,4 +1,4 @@
-// components/thread-pane/ThreadHeader.tsx
+// components/threadPane/ThreadHeader.tsx
 import { useEffect, useState } from 'react';
 import { UserPlus } from 'lucide-react';
 import axios from 'axios';
@@ -12,7 +12,7 @@ interface ThreadHeaderProps {
     name: string;
     description?: string;
     bio?: string;
-    avatar?: string;           // ← this is what we use
+    avatar?: string;
     memberCount?: number;
     isGroup: boolean;
     type?: 'channel' | 'dm';
@@ -27,20 +27,28 @@ const ThreadHeader = ({ chat }: ThreadHeaderProps) => {
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isAdding) return;
+    if (!isAdding) {
+      return;
+    }
+
     const fetchMe = async () => {
       try {
         const token = localStorage.getItem('token');
-        if (!token) return;
+        if (!token) {
+          return;
+        }
         const res = await axios.get(`${API_BASE_URL}/users/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const name = res.data?.name || res.data?.user?.name;
-        if (name) setCurrentUserName(name);
+        if (name) {
+          setCurrentUserName(name);
+        }
       } catch {
         // ignore
       }
     };
+
     fetchMe();
   }, [isAdding]);
 
@@ -50,111 +58,78 @@ const ThreadHeader = ({ chat }: ThreadHeaderProps) => {
       setIsSearching(false);
       return;
     }
+
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(
-          `${API_BASE_URL}/users?search=${encodeURIComponent(searchTerm)}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        const users: Array<{ id: string; name: string; avatar?: string }> =
-          res.data?.users || res.data || [];
+        const res = await axios.get(`${API_BASE_URL}/users?search=${encodeURIComponent(searchTerm)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const users: Array<{ id: string; name: string; avatar?: string }> = res.data?.users || res.data || [];
         const lower = searchTerm.toLowerCase();
-        const filtered = users.filter((u) => u.name.toLowerCase().includes(lower));
-        setSearchResults(filtered.slice(0, 10));
+        setSearchResults(users.filter((user) => user.name.toLowerCase().includes(lower)).slice(0, 10));
       } catch {
         setSearchResults([]);
       } finally {
         setIsSearching(false);
       }
     }, 350);
+
     return () => clearTimeout(timer);
   }, [isAdding, searchTerm]);
 
-    
-  // Bio for DM, description for channel — silent if missing
-  const middleText = chat?.type === 'dm' ? chat?.bio : chat?.description;
-
   if (!chat) {
-    return (
-      <div className="text-center space-y-4 py-8 text-gray-500">
-        <p>No chat selected</p>
-      </div>
-    );
+    return <div className="text-sm text-text-secondary">No chat selected</div>;
   }
 
+  const supportingText = chat.type === 'dm' ? chat.bio : chat.description;
+
   return (
-    <div className="text-center space-y-5 px-6 py-2">
-      {/* Avatar — uses chat.avatar if available */}
-      <div className="mx-auto w-28 h-28 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border-4 border-white shadow-lg">
+    <div className="text-center">
+      <div className="mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-[30px] bg-blue-soft text-3xl font-semibold text-blue shadow-[0_18px_36px_rgba(37,99,235,0.18)]">
         {chat.avatar ? (
-          <img
-            src={chat.avatar}
-            alt={chat.name}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              e.currentTarget.src = ''; // fallback on error
-              e.currentTarget.style.display = 'none';
-              e.currentTarget.parentElement!.innerHTML = `<span class="text-5xl font-bold text-gray-600">${chat.name.charAt(0).toUpperCase()}</span>`;
-            }}
-          />
+          <img src={chat.avatar} alt={chat.name} className="h-full w-full object-cover" />
         ) : (
-          <span className="text-5xl font-bold text-gray-600">
-            {chat.name.charAt(0).toUpperCase()}
-          </span>
+          chat.name.charAt(0).toUpperCase()
         )}
       </div>
 
-      {/* Name */}
-      <h3 className="text-lg lg:text-2xl font-bold text-white">{chat.name}</h3>
+      <h3 className="mt-5 text-2xl font-semibold text-text-primary">{chat.name}</h3>
+      {supportingText && <p className="mt-3 text-sm leading-6 text-text-secondary">{supportingText}</p>}
 
-      {/* Bio/Description — only if present */}
-      {middleText && (
-        <p className="text-sm text-gray-600 leading-relaxed max-w-md mx-auto">
-          {middleText}
-        </p>
-      )}
-
-      {/* Member count + Add button — only for groups/channels */}
       {chat.isGroup && (
-        <div className="flex items-center justify-center gap-8 text-sm pt-2">
-          <div className="text-center">
-            <span className="block text-2xl font-bold text-white">
-              {chat.memberCount ?? 0}
-            </span>
-            <span className="text-gray-600">members</span>
+        <div className="mt-5 flex items-center justify-center gap-4 rounded-[24px] bg-panel-muted px-4 py-4 text-left">
+          <div>
+            <div className="text-2xl font-semibold text-text-primary">{chat.memberCount ?? 0}</div>
+            <div className="text-xs uppercase tracking-[0.2em] text-text-secondary">Members</div>
           </div>
-
           <button
-            className="flex items-center gap-2 px-2 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-md text-xs"
-            onClick={() => setIsAdding((v) => !v)}
+            className="inline-flex items-center gap-2 rounded-full bg-blue px-4 py-2.5 text-sm font-medium text-white shadow-[0_14px_28px_rgba(37,99,235,0.22)] transition hover:bg-blue-dark cursor-pointer"
+            onClick={() => setIsAdding((value) => !value)}
           >
-            <UserPlus className="w-5 h-5" />
-            Add members
+            <UserPlus className="h-4 w-4" />
+            {isAdding ? 'Close invite' : 'Add members'}
           </button>
         </div>
       )}
 
-      {/* Add members search modal */}
       {chat.isGroup && isAdding && (
-        <div className="mt-4 space-y-3">
-          <div className="flex items-center justify-center gap-2">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Type a name to search..."
-              className="px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-900 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+        <div className="mt-5 rounded-[24px] bg-panel-muted p-4 text-left">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search for teammates"
+            className="w-full rounded-2xl border border-border bg-white px-4 py-3 text-sm text-text-primary outline-none focus:border-blue/30"
+          />
 
           {searchTerm && (
-            <div className="max-h-56 overflow-y-auto bg-white rounded-md border border-gray-200 shadow-sm mx-auto w-72">
+            <div className="scroll mt-3 max-h-56 overflow-y-auto rounded-2xl bg-white p-2 shadow-sm">
               {isSearching ? (
-                <div className="p-3 text-center text-gray-500 text-sm">Searching...</div>
+                <div className="px-3 py-4 text-center text-sm text-text-secondary">Searching...</div>
               ) : searchResults.length === 0 ? (
-                <div className="p-3 text-center text-gray-500 text-sm">No users found</div>
+                <div className="px-3 py-4 text-center text-sm text-text-secondary">No users found</div>
               ) : (
                 searchResults.map((user) => (
                   <button
@@ -166,20 +141,20 @@ const ThreadHeader = ({ chat }: ThreadHeaderProps) => {
                           toast.error('Please log in');
                           return;
                         }
+
                         await axios.post(
                           `${API_BASE_URL}/channels/${chat.id}/members`,
                           { userId: user.id },
                           { headers: { Authorization: `Bearer ${token}` } }
                         );
-                        toast.success('Member added');
 
-                        const byName = currentUserName || 'You';
+                        toast.success('Member added');
                         window.dispatchEvent(
                           new CustomEvent('member-added', {
                             detail: {
                               channelId: chat.id,
-                              addedUser: { id: user.id, name: user.name },
-                              addedBy: { name: byName },
+                              addedUser: { id: user.id, name: user.name, avatar: user.avatar },
+                              addedBy: { name: currentUserName || 'You' },
                             },
                           })
                         );
@@ -191,28 +166,24 @@ const ThreadHeader = ({ chat }: ThreadHeaderProps) => {
                         const msg =
                           typeof err === 'object' &&
                           err !== null &&
-                          // @ts-expect-error index access
+                          // @ts-expect-error response access
                           err.response?.data?.error
-                            ? // @ts-expect-error index access
+                            ? // @ts-expect-error response access
                               err.response.data.error
                             : 'Failed to add member';
                         toast.error(msg);
                       }
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 transition border-b last:border-none"
+                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 transition hover:bg-panel-muted cursor-pointer"
                   >
                     {user.avatar ? (
-                      <img
-                        src={user.avatar}
-                        alt={user.name}
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
+                      <img src={user.avatar} alt={user.name} className="h-9 w-9 rounded-2xl object-cover" />
                     ) : (
-                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-medium">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-panel-muted text-sm font-semibold text-text-primary">
                         {user.name.charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <span className="font-medium text-gray-900 text-sm">{user.name}</span>
+                    <span className="text-sm font-medium text-text-primary">{user.name}</span>
                   </button>
                 ))
               )}

@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// components/main/ForwardModal.tsx
 import { useEffect, useState } from 'react';
-import { X, Search, Hash, Send } from 'lucide-react';
+import { Hash, Search, Send, X } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { useWebSocket } from '../../context/webSocketContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -19,7 +19,6 @@ const ForwardModal = ({ isOpen, onClose, sourceMessage }: ForwardModalProps) => 
   const [channelResults, setChannelResults] = useState<Array<{ id: string; name: string }>>([]);
   const [userResults, setUserResults] = useState<Array<{ id: string; name: string; avatar?: string }>>([]);
   const [selectedTargets, setSelectedTargets] = useState<Array<{ id: string; type: 'channel' | 'dm'; name: string }>>([]);
-  const { socket } = useWebSocket();
 
   useEffect(() => {
     if (!isOpen) {
@@ -27,20 +26,26 @@ const ForwardModal = ({ isOpen, onClose, sourceMessage }: ForwardModalProps) => 
       setChannelResults([]);
       setUserResults([]);
       setSelectedTargets([]);
-      return;
     }
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      return;
+    }
+
     const term = searchTerm.trim();
     if (!term) {
       setChannelResults([]);
       setUserResults([]);
       return;
     }
+
     const token = localStorage.getItem('token');
-    if (!token) return;
+    if (!token) {
+      return;
+    }
+
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
@@ -52,10 +57,8 @@ const ForwardModal = ({ isOpen, onClose, sourceMessage }: ForwardModalProps) => 
             headers: { Authorization: `Bearer ${token}` },
           }),
         ]);
-        const chans = channelsRes.data?.channels || channelsRes.data || [];
-        const users = usersRes.data?.users || usersRes.data || [];
-        setChannelResults(chans.slice(0, 10));
-        setUserResults(users.slice(0, 10));
+        setChannelResults((channelsRes.data?.channels || channelsRes.data || []).slice(0, 10));
+        setUserResults((usersRes.data?.users || usersRes.data || []).slice(0, 10));
       } catch {
         setChannelResults([]);
         setUserResults([]);
@@ -63,44 +66,45 @@ const ForwardModal = ({ isOpen, onClose, sourceMessage }: ForwardModalProps) => 
         setIsSearching(false);
       }
     }, 300);
+
     return () => clearTimeout(timer);
   }, [isOpen, searchTerm]);
 
   const toggleSelect = (id: string, type: 'channel' | 'dm', name: string) => {
     setSelectedTargets((prev) => {
-      const idx = prev.findIndex((p) => p.id === id && p.type === type);
-      if (idx >= 0) {
-        const next = [...prev];
-        next.splice(idx, 1);
-        return next;
+      const exists = prev.find((target) => target.id === id && target.type === type);
+      if (exists) {
+        return prev.filter((target) => !(target.id === id && target.type === type));
       }
       return [...prev, { id, type, name }];
     });
   };
 
   const handleForward = async () => {
-    if (!sourceMessage || selectedTargets.length === 0) return;
+    if (!sourceMessage || selectedTargets.length === 0) {
+      return;
+    }
+
     const token = localStorage.getItem('token');
     if (!token) {
       toast.error('Please log in');
       return;
     }
+
     try {
       for (const target of selectedTargets) {
         const endpoint =
           target.type === 'channel'
             ? `/channels/${target.id}/messages`
             : `/dms/${target.id}/messages`;
-        const res = await axios.post(
+
+        await axios.post(
           `${API_BASE_URL}${endpoint}`,
           { text: sourceMessage.text },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        const newMessage = res.data?.message || res.data;
-        if (socket && target.type === 'channel') {
-          socket.emit('new_message', { channelId: target.id, message: newMessage });
-        }
       }
+
       toast.success('Message forwarded');
       onClose();
     } catch (err: any) {
@@ -108,126 +112,140 @@ const ForwardModal = ({ isOpen, onClose, sourceMessage }: ForwardModalProps) => 
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return null;
+  }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div
-        className="bg-white rounded-2xl shadow-2xl max-w-md lg:max-w-xl w-full max-h-[90vh] overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-4 border-b flex items-center justify-between">
-          <h2 className="text-lg font-bold">Forward message</h2>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200 cursor-pointer">
-            <X className="w-5 h-5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4" onClick={onClose}>
+      <div className="w-full max-w-xl rounded-[30px] border border-white/80 bg-white p-4 shadow-[0_34px_70px_rgba(15,23,42,0.2)]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-text-primary">Forward message</h2>
+            <p className="mt-1 text-sm text-text-secondary">Choose one or more channels or people.</p>
+          </div>
+          <button onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-full bg-panel-muted text-text-secondary transition hover:text-text-primary cursor-pointer">
+            <X className="h-5 w-5" />
           </button>
         </div>
 
         {sourceMessage && (
-          <div className="px-4 pt-3">
-            <div className="bg-sidebar rounded-xl px-3 py-2 text-sm text-white">{sourceMessage.text}</div>
-          </div>
+          <div className="mt-4 rounded-3xl bg-panel-muted px-4 py-3 text-sm leading-6 text-text-primary">{sourceMessage.text}</div>
         )}
 
-        <div className="p-4">
-          <div className="relative">
+        <div className="mt-4 rounded-3xl border border-border bg-panel px-4 py-3">
+          <div className="flex items-center gap-3 text-text-secondary">
+            <Search className="h-4 w-4" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search channels or people..."
-              className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-900 text-black"
+              placeholder="Search channels or people"
+              className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-secondary"
               autoFocus
             />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           </div>
         </div>
 
-        <div className="px-4 pb-3 flex flex-wrap gap-2">
-          {selectedTargets.map((t) => (
-            <span
-              key={`${t.type}-${t.id}`}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800"
-            >
-              {t.type === 'channel' ? <Hash className="w-3 h-3" /> : null}
-              {t.name}
+        {selectedTargets.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {selectedTargets.map((target) => (
               <button
-                onClick={() => toggleSelect(t.id, t.type, t.name)}
-                className="ml-1 text-blue-800 hover:text-blue-900"
+                key={`${target.type}-${target.id}`}
+                onClick={() => toggleSelect(target.id, target.type, target.name)}
+                className="inline-flex items-center gap-2 rounded-full bg-blue-soft px-3 py-1.5 text-xs font-medium text-blue cursor-pointer"
               >
-                ×
+                {target.type === 'channel' && <Hash className="h-3 w-3" />}
+                {target.name}
+                <span>x</span>
               </button>
-            </span>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
-        <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
+        <div className="scroll mt-5 max-h-[340px] overflow-y-auto space-y-5 pr-1">
           {isSearching ? (
-            <div className="text-center text-gray-500">Searching...</div>
+            <div className="rounded-3xl bg-panel-muted px-4 py-8 text-center text-sm text-text-secondary">Searching...</div>
           ) : (
             <>
               {channelResults.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold text-gray-500 mb-2">Channels</h3>
-                  {channelResults.map((ch) => {
-                    const selected = selectedTargets.some((t) => t.id === ch.id && t.type === 'channel');
-                    return (
-                      <button
-                        key={ch.id}
-                        onClick={() => toggleSelect(ch.id, 'channel', ch.name)}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition cursor-pointer ${
-                          selected ? 'bg-gray-200' : 'hover:bg-gray-100'
-                        }`}
-                      >
-                        <Hash className="w-4 h-4 text-gray-500" />
-                        <span className="font-medium">{ch.name}</span>
-                      </button>
-                    );
-                  })}
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-text-secondary">Channels</h3>
+                  <div className="space-y-2">
+                    {channelResults.map((channel) => {
+                      const selected = selectedTargets.some((target) => target.id === channel.id && target.type === 'channel');
+                      return (
+                        <button
+                          key={channel.id}
+                          onClick={() => toggleSelect(channel.id, 'channel', channel.name)}
+                          className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition cursor-pointer ${
+                            selected ? 'bg-blue-soft text-blue' : 'bg-panel-muted text-text-primary hover:bg-panel-strong'
+                          }`}
+                        >
+                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-blue">
+                            <Hash className="h-4 w-4" />
+                          </div>
+                          <span className="font-medium">{channel.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
               {userResults.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold text-gray-500 mb-2">People</h3>
-                  {userResults.map((u) => {
-                    const selected = selectedTargets.some((t) => t.id === u.id && t.type === 'dm');
-                    return (
-                      <button
-                        key={u.id}
-                        onClick={() => toggleSelect(u.id, 'dm', u.name)}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition cursor-pointer ${
-                          selected ? 'bg-gray-200' : 'hover:bg-gray-100'
-                        }`}
-                      >
-                        {u.avatar ? (
-                          <img src={u.avatar} alt={u.name} className="w-7 h-7 rounded-full object-cover" />
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-medium">
-                            {u.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <span className="font-medium">{u.name}</span>
-                      </button>
-                    );
-                  })}
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-text-secondary">People</h3>
+                  <div className="space-y-2">
+                    {userResults.map((user) => {
+                      const selected = selectedTargets.some((target) => target.id === user.id && target.type === 'dm');
+                      return (
+                        <button
+                          key={user.id}
+                          onClick={() => toggleSelect(user.id, 'dm', user.name)}
+                          className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition cursor-pointer ${
+                            selected ? 'bg-blue-soft text-blue' : 'bg-panel-muted text-text-primary hover:bg-panel-strong'
+                          }`}
+                        >
+                          {user.avatar ? (
+                            <img src={user.avatar} alt={user.name} className="h-10 w-10 rounded-2xl object-cover" />
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-sm font-semibold text-text-primary">
+                              {user.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span className="font-medium">{user.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {!searchTerm.trim() && (
+                <div className="rounded-3xl bg-panel-muted px-4 py-8 text-center text-sm text-text-secondary">
+                  Start typing to search channels and people.
                 </div>
               )}
             </>
           )}
         </div>
 
-        <div className="p-4 border-t flex items-center justify-end gap-3">
-          <button onClick={onClose} className="px-3 py-2 rounded-md bg-gray-200  cursor-pointer hover:bg-gray-400 text-black">
+        <div className="mt-6 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-full border border-border px-4 py-2 text-sm text-text-secondary transition hover:bg-panel-muted cursor-pointer">
             Cancel
           </button>
           <button
             onClick={handleForward}
             disabled={!sourceMessage || selectedTargets.length === 0}
-            className="px-4 py-2 rounded-md bg-blue-900 text-white hover:bg-sidebar/80 disabled:bg-sidebar disabled:cursor-not-allowed flex items-center cursor-pointer gap-2"
+            className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold ${
+              sourceMessage && selectedTargets.length > 0
+                ? 'bg-blue text-white shadow-[0_16px_30px_rgba(37,99,235,0.24)] cursor-pointer'
+                : 'bg-panel-muted text-text-secondary cursor-not-allowed'
+            }`}
           >
-            <Send className="w-4 h-4" />
-            Send
+            <Send className="h-4 w-4" />
+            Forward
           </button>
         </div>
       </div>

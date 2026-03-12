@@ -138,7 +138,7 @@ const CreateChannelModal = ({ isOpen, onClose }: CreateChannelModalProps) => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post(
+      const response = await axios.post(
         `${API_BASE_URL}/channels`,
         {
           name,
@@ -149,6 +149,14 @@ const CreateChannelModal = ({ isOpen, onClose }: CreateChannelModalProps) => {
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
+      if (response.data?.channel) {
+        window.dispatchEvent(
+          new CustomEvent('channel-created', {
+            detail: { channel: response.data.channel },
+          })
+        );
+      }
 
       toast.success('Channel created!');
       onClose();
@@ -340,3 +348,4 @@ const CreateChannelModal = ({ isOpen, onClose }: CreateChannelModalProps) => {
 };
 
 export default CreateChannelModal;
+
