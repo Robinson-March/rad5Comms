@@ -36,8 +36,6 @@ const SettingsModal = ({ isOpen, onClose, defaultTab = 'profile' }: SettingsModa
     bio: '',
     lastSeen: 'everyone',
     profileVisibility: 'everyone',
-    readReceipts: true,
-    typingIndicators: true,
     messageNotifications: true,
     groupNotifications: true,
     soundVibration: true,
@@ -81,8 +79,6 @@ const SettingsModal = ({ isOpen, onClose, defaultTab = 'profile' }: SettingsModa
           bio: user.bio || '',
           lastSeen: user.lastSeen || 'everyone',
           profileVisibility: user.profileVisibility || 'everyone',
-          readReceipts: user.readReceipts ?? true,
-          typingIndicators: user.typingIndicators ?? true,
           messageNotifications: user.notificationSettings?.messages ?? true,
           groupNotifications: user.notificationSettings?.groups ?? true,
           soundVibration: user.notificationSettings?.sounds ?? true,
@@ -146,8 +142,6 @@ const SettingsModal = ({ isOpen, onClose, defaultTab = 'profile' }: SettingsModa
           {
             lastSeen: formData.lastSeen,
             profileVisibility: formData.profileVisibility,
-            readReceipts: formData.readReceipts,
-            typingIndicators: formData.typingIndicators,
           },
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -408,44 +402,6 @@ const SettingsModal = ({ isOpen, onClose, defaultTab = 'profile' }: SettingsModa
                       <option value="contacts">My contacts</option>
                       <option value="nobody">Nobody</option>
                     </select>
-                  </div>
-
-                  <div className="rounded-[24px] border border-border bg-panel p-5">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <h3 className="text-sm font-semibold text-text-primary">Read receipts</h3>
-                        <p className="mt-1 text-sm text-text-secondary">Show when you have read messages.</p>
-                      </div>
-                      <label className="relative inline-flex cursor-pointer items-center">
-                        <input
-                          type="checkbox"
-                          name="readReceipts"
-                          checked={formData.readReceipts}
-                          onChange={(e) => setFormData({ ...formData, readReceipts: e.target.checked })}
-                          className="peer sr-only"
-                        />
-                        <div className={`${switchTrackClass} ${switchThumbClass}`} />
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-border bg-panel p-5">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <h3 className="text-sm font-semibold text-text-primary">Typing indicators</h3>
-                        <p className="mt-1 text-sm text-text-secondary">Let people know when you are typing.</p>
-                      </div>
-                      <label className="relative inline-flex cursor-pointer items-center">
-                        <input
-                          type="checkbox"
-                          name="typingIndicators"
-                          checked={formData.typingIndicators}
-                          onChange={(e) => setFormData({ ...formData, typingIndicators: e.target.checked })}
-                          className="peer sr-only"
-                        />
-                        <div className={`${switchTrackClass} ${switchThumbClass}`} />
-                      </label>
-                    </div>
                   </div>
                 </div>
               )}

@@ -21,11 +21,21 @@ interface AsideProps {
     chatId: string,
     type: 'channel' | 'dm',
     name?: string,
-    extra?: { avatar?: string; description?: string; bio?: string; memberCount?: number; dmId?: string }
+    extra?: {
+      avatar?: string;
+      description?: string;
+      bio?: string;
+      memberCount?: number;
+      isSystem?: boolean;
+      isDefault?: boolean;
+      membershipPolicy?: string;
+      dmId?: string;
+    }
   ) => void;
   selectedChatId?: string | null;
   selectedChatType?: 'channel' | 'dm' | null;
   onProfileOpen?: () => void;
+  canAccessAdmin?: boolean;
 }
 
 interface Channel {
@@ -34,6 +44,9 @@ interface Channel {
   description?: string;
   avatar?: string;
   isGroup: boolean;
+  isSystem?: boolean;
+  isDefault?: boolean;
+  membershipPolicy?: string;
   createdBy: string;
   members: Array<{
     id: string;
@@ -204,7 +217,13 @@ const upsertDmUser = (items: User[], nextUser: User): User[] => {
   return [mergedUser, ...items.filter((user) => user.id !== nextUser.id)];
 };
 
-const Aside = ({ onSelectChat, selectedChatId = null, selectedChatType = null, onProfileOpen }: AsideProps) => {
+const Aside = ({
+  onSelectChat,
+  selectedChatId = null,
+  selectedChatType = null,
+  onProfileOpen,
+  canAccessAdmin = false,
+}: AsideProps) => {
   const [activeTab, setActiveTab] = useState<'all' | 'archived' | 'starred'>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -718,7 +737,18 @@ const Aside = ({ onSelectChat, selectedChatId = null, selectedChatType = null, o
       setUsers((prev) => prev.map((user) => (user.id === chatId ? { ...user, unread: 0 } : user)));
     }
 
-    let extraData: { avatar?: string; description?: string; bio?: string; memberCount?: number; dmId?: string } | undefined;
+    let extraData:
+      | {
+          avatar?: string;
+          description?: string;
+          bio?: string;
+          memberCount?: number;
+          isSystem?: boolean;
+          isDefault?: boolean;
+          membershipPolicy?: string;
+          dmId?: string;
+        }
+      | undefined;
 
     if (type === 'channel') {
       const channel = channels.find((item) => item.id === chatId);
@@ -727,6 +757,9 @@ const Aside = ({ onSelectChat, selectedChatId = null, selectedChatType = null, o
           avatar: channel.avatar,
           description: channel.description,
           memberCount: channel.members?.length,
+          isSystem: channel.isSystem,
+          isDefault: channel.isDefault,
+          membershipPolicy: channel.membershipPolicy,
         };
       }
     } else {
@@ -754,6 +787,7 @@ const Aside = ({ onSelectChat, selectedChatId = null, selectedChatType = null, o
         currentUserName={currentUserName}
         currentUserAvatar={currentUserAvatar}
         onProfileOpen={onProfileOpen}
+        canAccessAdmin={canAccessAdmin}
       />
 
       <AsideTabs activeTab={activeTab} setActiveTab={setActiveTab} isLoading={isLoading} />

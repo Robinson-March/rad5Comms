@@ -6,6 +6,7 @@ import Main from '../components/main/Main';
 import ThreadPane from '../components/threadPane/ThreadPane';
 import SettingsModal from './Settings';
 import 'react-loading-skeleton/dist/skeleton.css';
+import { useAuthSession } from '../context/AuthSessionContext';
 
 const DESKTOP_BREAKPOINT = 1180;
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -20,6 +21,9 @@ export interface SelectedChat {
   memberCount?: number;
   members?: Array<{ id: string; name: string; avatar?: string; role?: string }>;
   isAdmin?: boolean;
+  isSystem?: boolean;
+  isDefault?: boolean;
+  membershipPolicy?: string;
   dmId?: string;
   media?: Array<{ url: string; type: string; name?: string; mimeType?: string | null; size?: number | null }>;
 }
@@ -54,6 +58,7 @@ const extractMedia = (payload: any): Array<{ url: string; type: string; name?: s
 };
 
 function HomePage() {
+  const { canAccessAdmin } = useAuthSession();
   const [isThreadOpen, setIsThreadOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < DESKTOP_BREAKPOINT);
   const [activeView, setActiveView] = useState<'aside' | 'main' | 'thread'>('aside');
@@ -152,6 +157,9 @@ function HomePage() {
       description?: string;
       bio?: string;
       memberCount?: number;
+      isSystem?: boolean;
+      isDefault?: boolean;
+      membershipPolicy?: string;
       dmId?: string;
     }
   ) => {
@@ -212,6 +220,9 @@ function HomePage() {
               : channel.members?.length || extra?.memberCount,
           members: Array.isArray(channel.members) ? channel.members : [],
           isAdmin: channel.role === 'admin' || channel.isAdmin === true,
+          isSystem: channel.isSystem === true || extra?.isSystem,
+          isDefault: channel.isDefault === true || extra?.isDefault,
+          membershipPolicy: channel.membershipPolicy || extra?.membershipPolicy,
           media,
         };
       } else {
@@ -278,6 +289,7 @@ function HomePage() {
             selectedChatId={selectedChat?.id ?? null}
             selectedChatType={selectedChat?.type ?? null}
             onProfileOpen={() => setIsSettingsOpen(true)}
+            canAccessAdmin={canAccessAdmin}
           />
         </div>
 

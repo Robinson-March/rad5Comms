@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ï»¿/* eslint-disable @typescript-eslint/no-explicit-any */
 // components/main/MessageBubble.tsx
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
@@ -62,6 +62,8 @@ interface MessageBubbleProps {
   onReactionOptimistic?: (messageId: string, emoji: string) => void;
   onScrollToMessage?: (targetId: string) => void;
   showSenderName?: boolean;
+  isSearchMatch?: boolean;
+  isActiveSearchMatch?: boolean;
 }
 
 const isImageAttachment = (attachment: Attachment) => {
@@ -103,6 +105,8 @@ const MessageBubble = ({
   onReactionOptimistic,
   onScrollToMessage,
   showSenderName = false,
+  isSearchMatch = false,
+  isActiveSearchMatch = false,
 }: MessageBubbleProps) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -266,14 +270,25 @@ const MessageBubble = ({
   const bubbleTone = message.isOwn ? 'bg-gradient-to-br from-blue to-blue-dark text-white' : 'border border-white/80 bg-white text-text-primary';
   const mutedTone = message.isOwn ? 'bg-white/15 text-white' : 'bg-panel-muted text-text-secondary';
   const showUploadProgress = typeof message.uploadProgress === 'number' && message.uploadProgress > 0 && message.uploadProgress < 100;
+  const searchHighlightTone = isSearchMatch
+    ? isActiveSearchMatch
+      ? 'rounded-[28px] bg-amber-100/80 p-1.5 ring-2 ring-amber-300'
+      : 'rounded-[28px] bg-amber-50/90 p-1.5 ring-1 ring-amber-200'
+    : '';
+  const inlineCodeTone = message.isOwn ? 'bg-white/15 text-white' : 'bg-panel text-text-primary';
+  const blockQuoteTone = message.isOwn ? 'border-white/35 text-white/90' : 'border-blue/20 text-text-secondary';
 
   const markdownComponents = {
-    p: ({ children }: any) => <p className="whitespace-pre-wrap break-words [&:not(:first-child)]:mt-2">{children}</p>,
+    p: ({ children }: any) => <p className="whitespace-pre-wrap break-words leading-6 [&:not(:first-child)]:mt-2">{children}</p>,
     strong: ({ children }: any) => <strong className="font-semibold">{children}</strong>,
     em: ({ children }: any) => <em className="italic">{children}</em>,
-    ul: ({ children }: any) => <ul className="ml-5 list-disc space-y-1">{children}</ul>,
-    ol: ({ children }: any) => <ol className="ml-5 list-decimal space-y-1">{children}</ol>,
+    h1: ({ children }: any) => <h1 className="mt-3 text-base font-semibold leading-6">{children}</h1>,
+    h2: ({ children }: any) => <h2 className="mt-3 text-[15px] font-semibold leading-6">{children}</h2>,
+    h3: ({ children }: any) => <h3 className="mt-3 text-sm font-semibold uppercase tracking-[0.08em]">{children}</h3>,
+    ul: ({ children }: any) => <ul className="mt-2 ml-5 list-disc space-y-1.5">{children}</ul>,
+    ol: ({ children }: any) => <ol className="mt-2 ml-5 list-decimal space-y-1.5">{children}</ol>,
     li: ({ children }: any) => <li className="break-words">{children}</li>,
+    blockquote: ({ children }: any) => <blockquote className={`mt-2 border-l-2 pl-3 italic ${blockQuoteTone}`}>{children}</blockquote>,
     a: ({ href, children }: any) => (
       <a
         href={href}
@@ -286,15 +301,16 @@ const MessageBubble = ({
     ),
     code: ({ inline, children }: any) =>
       inline ? (
-        <code className={`rounded px-1.5 py-0.5 font-mono text-[0.92em] ${message.isOwn ? 'bg-white/15 text-white' : 'bg-panel text-text-primary'}`}>
+        <code className={`rounded px-1.5 py-0.5 font-mono text-[0.92em] ${inlineCodeTone}`}>
           {children}
         </code>
       ) : (
-        <code className="block overflow-x-auto rounded-2xl bg-slate-950/90 px-3 py-2 font-mono text-[0.92em] text-slate-100">
+        <code className="block overflow-x-auto rounded-2xl bg-slate-950/90 px-3 py-2 font-mono text-[0.92em] leading-6 text-slate-100">
           {children}
         </code>
       ),
-    pre: ({ children }: any) => <pre className="mt-2">{children}</pre>,
+    pre: ({ children }: any) => <pre className="mt-2 overflow-hidden">{children}</pre>,
+    hr: () => <hr className={`my-3 border-t ${message.isOwn ? 'border-white/15' : 'border-border'}`} />,
   };
 
   return (
@@ -309,7 +325,7 @@ const MessageBubble = ({
             </div>
           ))}
 
-        <div className={`relative max-w-[78%] ${message.isOwn ? 'items-end' : 'items-start'}`}>
+        <div className={`relative max-w-[78%] ${message.isOwn ? 'items-end' : 'items-start'} ${searchHighlightTone}`}>
           {!message.isOwn && showSenderName && <div className="mb-1 pl-1 text-xs font-semibold text-text-primary">{message.sender?.name}</div>}
 
           {isEditing ? (
@@ -356,7 +372,9 @@ const MessageBubble = ({
               {emojiOnly && hasText ? (
                 <span className="text-5xl leading-none">{message.text}</span>
               ) : hasText ? (
-                <ReactMarkdown components={markdownComponents}>{message.text}</ReactMarkdown>
+                <div className="space-y-2">
+                  <ReactMarkdown components={markdownComponents}>{message.text}</ReactMarkdown>
+                </div>
               ) : null}
 
               {imageAttachments.length > 0 && (
@@ -422,7 +440,7 @@ const MessageBubble = ({
                       <div className="min-w-0">
                         <div className="truncate font-semibold">{attachment.name || 'Attachment'}</div>
                         <div className="truncate opacity-80">
-                          {[attachment.mimeType, formatFileSize(attachment.size)].filter(Boolean).join(' • ') || 'Open file'}
+                          {[attachment.mimeType, formatFileSize(attachment.size)].filter(Boolean).join(' - ') || 'Open file'}
                         </div>
                       </div>
                       <span className="shrink-0 font-semibold">Open</span>
@@ -652,4 +670,5 @@ const MessageBubble = ({
 };
 
 export default MessageBubble;
+
 

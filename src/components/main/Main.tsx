@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/main/Main.tsx
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import '../../App.css';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -347,11 +347,38 @@ const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProp
   const [isPeerTyping, setIsPeerTyping] = useState(false);
   const [resolvedDmId, setResolvedDmId] = useState<string | undefined>(selectedChat?.type === 'dm' ? selectedChat.dmId : undefined);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [messageSearchTerm, setMessageSearchTerm] = useState('');
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { onlineUsers, socket, transport } = useWebSocket();
 
   const channelId = selectedChat?.type === 'channel' ? selectedChat.id : undefined;
   const dmId = selectedChat?.type === 'dm' ? resolvedDmId || selectedChat.dmId : undefined;
+  const normalizedSearchTerm = messageSearchTerm.trim().toLowerCase();
+
+  const searchMatchIds = useMemo(() => {
+    if (!normalizedSearchTerm) {
+      return [];
+    }
+
+    return messages
+      .filter((message) => {
+        if (message.type === 'system') {
+          return false;
+        }
+
+        const searchableText = [message.text, message.replyToText, message.replyToSender, message.sender?.name]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        return searchableText.includes(normalizedSearchTerm);
+      })
+      .map((message) => message.id);
+  }, [messages, normalizedSearchTerm]);
+
+  const activeSearchMessageId = searchMatchIds.length ? searchMatchIds[activeSearchIndex] : null;
 
   const syncResolvedDm = useCallback(
     (nextDmId?: string | null) => {
@@ -486,11 +513,23 @@ const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProp
     setIsPeerTyping(false);
     setResolvedDmId(selectedChat?.type === 'dm' ? selectedChat.dmId : undefined);
     setReplyTarget(null);
+    setIsSearchOpen(false);
+    setMessageSearchTerm('');
+    setActiveSearchIndex(0);
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
     }
   }, [selectedChat?.id, selectedChat?.type, selectedChat?.dmId]);
+
+  useEffect(() => {
+    if (!searchMatchIds.length) {
+      setActiveSearchIndex(0);
+      return;
+    }
+
+    setActiveSearchIndex((previousIndex) => Math.min(previousIndex, searchMatchIds.length - 1));
+  }, [searchMatchIds]);
 
   useEffect(() => {
     return () => {
@@ -740,6 +779,49 @@ const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProp
     [selectedChat, channelMarkRead, dmMarkRead, resolvedDmId, socket, messages]
   );
 
+  const handleSearchChange = (value: string) => {
+    setMessageSearchTerm(value);
+    setActiveSearchIndex(0);
+  };
+
+  const handlePreviousSearchResult = () => {
+    if (!searchMatchIds.length) {
+      return;
+    }
+
+    setActiveSearchIndex((previousIndex) => (previousIndex - 1 + searchMatchIds.length) % searchMatchIds.length);
+  };
+
+  const handleNextSearchResult = () => {
+    if (!searchMatchIds.length) {
+      return;
+    }
+
+    setActiveSearchIndex((previousIndex) => (previousIndex + 1) % searchMatchIds.length);
+  };
+
+  const handleClearSearch = () => {
+    setMessageSearchTerm('');
+    setActiveSearchIndex(0);
+  };
+
+  const handleToggleSearch = () => {
+    setIsSearchOpen((current) => {
+      const next = !current;
+      if (!next) {
+        setMessageSearchTerm('');
+        setActiveSearchIndex(0);
+      }
+      return next;
+    });
+  };
+
+  const handleCloseSearch = () => {
+    setIsSearchOpen(false);
+    setMessageSearchTerm('');
+    setActiveSearchIndex(0);
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col bg-transparent">
       {selectedChat ? (
@@ -749,6 +831,16 @@ const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProp
           toggleThreadPane={toggleThreadPane}
           onBack={onBack}
           isOnline={selectedChat.type === 'dm' ? onlineUsers.includes(String(selectedChat.id)) : undefined}
+          isSearchOpen={isSearchOpen}
+          searchValue={messageSearchTerm}
+          searchResultsCount={searchMatchIds.length}
+          activeSearchIndex={searchMatchIds.length ? activeSearchIndex : -1}
+          onToggleSearch={handleToggleSearch}
+          onSearchChange={handleSearchChange}
+          onPreviousSearchResult={handlePreviousSearchResult}
+          onNextSearchResult={handleNextSearchResult}
+          onClearSearch={handleClearSearch}
+          onCloseSearch={handleCloseSearch}
         />
       ) : null}
 
@@ -768,6 +860,8 @@ const Main = ({ isThreadOpen, toggleThreadPane, onBack, selectedChat }: MainProp
               onMessagesViewed={handleMessagesViewed}
               onPollVoted={handlePollVoted}
               onReactionOptimistic={handleReactionOptimistic}
+              matchedMessageIds={searchMatchIds}
+              activeSearchMessageId={activeSearchMessageId}
             />
             <MessageInput
               selectedChat={selectedChat}

@@ -50,7 +50,7 @@ const ChatSection = ({
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="relative space-y-2 overflow-visible">
         {items.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-white/60 px-4 py-5 text-center text-sm text-text-secondary">
             {emptyMessage}
@@ -76,3 +76,4 @@ const ChatSection = ({
 };
 
 export default ChatSection;
+

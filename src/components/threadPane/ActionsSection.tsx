@@ -10,10 +10,11 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 interface ActionsSectionProps {
   isGroup: boolean;
   chatId: string;
+  isAdminManagedChannel?: boolean;
   onActionSuccess: () => void;
 }
 
-const ActionsSection = ({ isGroup, chatId, onActionSuccess }: ActionsSectionProps) => {
+const ActionsSection = ({ isGroup, chatId, isAdminManagedChannel = false, onActionSuccess }: ActionsSectionProps) => {
   const navigate = useNavigate();
 
   const handleClearChat = async () => {
@@ -84,20 +85,50 @@ const ActionsSection = ({ isGroup, chatId, onActionSuccess }: ActionsSectionProp
         </button>
       ) : (
         <>
-          <button
-            onClick={handleLeaveGroup}
-            className="flex w-full items-center gap-3 rounded-2xl bg-panel-muted px-4 py-3 text-left text-sm font-medium text-text-primary transition hover:bg-panel-strong cursor-pointer"
-          >
-            <Ban className="h-4 w-4 text-warning" />
-            Leave group
-          </button>
-          <button
-            onClick={handleDeleteGroup}
-            className="flex w-full items-center gap-3 rounded-2xl bg-red-50 px-4 py-3 text-left text-sm font-medium text-light-red transition hover:bg-red-100 cursor-pointer"
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete group
-          </button>
+          {isAdminManagedChannel ? (
+            <>
+              <button
+                disabled
+                type="button"
+                className="flex w-full cursor-not-allowed items-center gap-3 rounded-2xl bg-panel-muted px-4 py-3 text-left text-sm font-medium text-text-secondary opacity-70"
+                title="Group access changes are managed from the admin page."
+              >
+                <Ban className="h-4 w-4 text-warning" />
+                Leave group
+              </button>
+              <button
+                disabled
+                type="button"
+                className="flex w-full cursor-not-allowed items-center gap-3 rounded-2xl bg-red-50 px-4 py-3 text-left text-sm font-medium text-light-red opacity-60"
+                title="Group deletion is managed from the admin page."
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete group
+              </button>
+              <p className="rounded-2xl bg-panel-muted px-4 py-3 text-sm leading-6 text-text-secondary">
+                Group membership and deletion are managed from the admin page for this channel.
+              </p>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={handleLeaveGroup}
+                type="button"
+                className="flex w-full items-center gap-3 rounded-2xl bg-panel-muted px-4 py-3 text-left text-sm font-medium text-text-primary transition hover:bg-panel-strong cursor-pointer"
+              >
+                <Ban className="h-4 w-4 text-warning" />
+                Leave group
+              </button>
+              <button
+                onClick={handleDeleteGroup}
+                type="button"
+                className="flex w-full items-center gap-3 rounded-2xl bg-red-50 px-4 py-3 text-left text-sm font-medium text-light-red transition hover:bg-red-100 cursor-pointer"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete group
+              </button>
+            </>
+          )}
         </>
       )}
     </div>

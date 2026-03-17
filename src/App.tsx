@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import HomePage from "./pages/HomePage";
 import { Toaster } from "sonner";
 import Auth from "./pages/Auth";
+import AdminPage from "./pages/AdminPage";
+import ChangePassword from "./pages/ChangePassword";
 import ForgotPassword from "./pages/ForgotPassword";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -47,6 +49,11 @@ function App() {
 
         <Route element={<ProtectedRoute />}>
           <Route path="/home" element={<HomePage />} />
+          <Route path="/change-password" element={<ChangePassword />} />
+        </Route>
+
+        <Route element={<ProtectedRoute allowMembers={false} />}>
+          <Route path="/admin" element={<AdminPage />} />
         </Route>
 
         {/* Catch-all route for 404 */}

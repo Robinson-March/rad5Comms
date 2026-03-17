@@ -17,6 +17,7 @@ import {
   Smile,
   Square,
   Trash2,
+  Type,
   X,
 } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
@@ -126,6 +127,7 @@ const MessageInput = ({
   const [message, setMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const [showFormattingMenu, setShowFormattingMenu] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [pendingAudioFile, setPendingAudioFile] = useState<File | null>(null);
@@ -139,6 +141,7 @@ const MessageInput = ({
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const plusMenuRef = useRef<HTMLDivElement>(null);
+  const formattingMenuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -287,6 +290,9 @@ const MessageInput = ({
       if (plusMenuRef.current && !plusMenuRef.current.contains(event.target as Node)) {
         setShowPlusMenu(false);
       }
+      if (formattingMenuRef.current && !formattingMenuRef.current.contains(event.target as Node)) {
+        setShowFormattingMenu(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -322,6 +328,7 @@ const MessageInput = ({
       setMessage('');
       setShowEmojiPicker(false);
       setShowPlusMenu(false);
+      setShowFormattingMenu(false);
       setIsPollComposerOpen(false);
       setPollOptions(['', '']);
       setPendingAttachments((current) => {
@@ -341,7 +348,7 @@ const MessageInput = ({
     });
   };
 
-  const wrapSelection = (prefix: string, suffix = prefix) => {
+  const wrapSelection = (prefix: string, suffix = prefix, placeholder = 'text') => {
     const input = inputRef.current;
     if (!input) {
       return;
@@ -350,10 +357,10 @@ const MessageInput = ({
     const start = input.selectionStart;
     const end = input.selectionEnd;
     const selectedText = message.slice(start, end);
-    const hasSelection = start !== end;
-    const nextValue = `${message.slice(0, start)}${prefix}${selectedText}${suffix}${message.slice(end)}`;
+    const content = selectedText || placeholder;
+    const nextValue = `${message.slice(0, start)}${prefix}${content}${suffix}${message.slice(end)}`;
     const cursorStart = start + prefix.length;
-    const cursorEnd = hasSelection ? cursorStart + selectedText.length : cursorStart;
+    const cursorEnd = cursorStart + content.length;
     insertAtSelection(nextValue, cursorStart, cursorEnd);
   };
 
@@ -366,12 +373,14 @@ const MessageInput = ({
     const start = input.selectionStart;
     const end = input.selectionEnd;
     const selectedText = message.slice(start, end);
-    const nextValue = `${message.slice(0, start)}[${selectedText}](https://)${message.slice(end)}`;
+    const label = selectedText || 'link text';
+    const placeholderUrl = 'https://example.com';
+    const nextValue = `${message.slice(0, start)}[${label}](${placeholderUrl})${message.slice(end)}`;
     const labelStart = start + 1;
-    const labelEnd = labelStart + selectedText.length;
+    const labelEnd = labelStart + label.length;
     const urlStart = labelEnd + 3;
-    const urlEnd = urlStart + 'https://'.length;
-    insertAtSelection(nextValue, selectedText ? urlStart : labelStart, selectedText ? urlEnd : labelStart);
+    const urlEnd = urlStart + placeholderUrl.length;
+    insertAtSelection(nextValue, urlStart, urlEnd);
   };
 
   const formatListSelection = () => {
@@ -385,14 +394,20 @@ const MessageInput = ({
     const selectedText = message.slice(start, end);
 
     if (!selectedText) {
-      const nextValue = `${message.slice(0, start)}- ${message.slice(end)}`;
-      insertAtSelection(nextValue, start + 2, start + 2);
+      const placeholder = '- List item';
+      const nextValue = `${message.slice(0, start)}${placeholder}${message.slice(end)}`;
+      insertAtSelection(nextValue, start + 2, start + placeholder.length);
       return;
     }
 
     const formatted = selectedText
       .split('\n')
-      .map((line) => (line.trim().startsWith('- ') ? line : `- ${line}`))
+      .map((line) => {
+        if (!line.trim()) {
+          return '- ';
+        }
+        return line.trim().startsWith('- ') ? line : `- ${line}`;
+      })
       .join('\n');
     const nextValue = `${message.slice(0, start)}${formatted}${message.slice(end)}`;
     insertAtSelection(nextValue, start, start + formatted.length);
@@ -407,12 +422,14 @@ const MessageInput = ({
     const start = input.selectionStart;
     const end = input.selectionEnd;
     const selectedText = message.slice(start, end);
-    const isBlock = selectedText.includes('\n');
+    const placeholder = 'code';
+    const content = selectedText || placeholder;
+    const isBlock = content.includes('\n');
     const prefix = isBlock ? '```\n' : '`';
     const suffix = isBlock ? '\n```' : '`';
-    const nextValue = `${message.slice(0, start)}${prefix}${selectedText}${suffix}${message.slice(end)}`;
+    const nextValue = `${message.slice(0, start)}${prefix}${content}${suffix}${message.slice(end)}`;
     const cursorStart = start + prefix.length;
-    const cursorEnd = selectedText ? cursorStart + selectedText.length : cursorStart;
+    const cursorEnd = cursorStart + content.length;
     insertAtSelection(nextValue, cursorStart, cursorEnd);
   };
 
@@ -445,6 +462,16 @@ const MessageInput = ({
       sendTyping(false);
     }, 1500);
   };
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) {
+      return;
+    }
+
+    input.style.height = '0px';
+    input.style.height = `${Math.min(input.scrollHeight, 160)}px`;
+  }, [message, selectedChat?.id, selectedChat?.type]);
 
   const addPendingFiles = async (files: FileList | null, imageOnly = false) => {
     const nextFiles = Array.from(files || []).filter((file) => !imageOnly || file.type.startsWith('image/'));
@@ -553,6 +580,49 @@ const MessageInput = ({
   const canSend = !isSending && !isRecordingVoice && hasPendingContent && (!hasPollDraft || hasValidPoll);
   const recordingLabel = formatDurationLabel(recordingElapsedSeconds);
   const pendingAudioLabel = formatDurationLabel(pendingAudioDuration);
+  const composerTargetName = selectedChat?.name || (selectedChat?.type === 'channel' ? 'channel' : 'conversation');
+  const formattingActions = [
+    {
+      label: 'Bold',
+      icon: Bold,
+      onClick: () => {
+        wrapSelection('**', '**', 'bold text');
+        setShowFormattingMenu(false);
+      },
+    },
+    {
+      label: 'Italic',
+      icon: Italic,
+      onClick: () => {
+        wrapSelection('_', '_', 'italic text');
+        setShowFormattingMenu(false);
+      },
+    },
+    {
+      label: 'Link',
+      icon: Link2,
+      onClick: () => {
+        formatLinkSelection();
+        setShowFormattingMenu(false);
+      },
+    },
+    {
+      label: 'List',
+      icon: List,
+      onClick: () => {
+        formatListSelection();
+        setShowFormattingMenu(false);
+      },
+    },
+    {
+      label: 'Code',
+      icon: Code2,
+      onClick: () => {
+        formatCodeSelection();
+        setShowFormattingMenu(false);
+      },
+    },
+  ];
 
   const handleSend = async () => {
     if (!selectedChat || isSending || isRecordingVoice) {
@@ -631,6 +701,7 @@ const MessageInput = ({
     setPollOptions(['', '']);
     setShowEmojiPicker(false);
     setShowPlusMenu(false);
+    setShowFormattingMenu(false);
     setIsSending(true);
     onCancelReply?.();
     sendTyping?.(false);
@@ -908,32 +979,112 @@ const MessageInput = ({
         </div>
       )}
 
-      <div className="mx-auto w-full max-w-[820px] rounded-[26px] border border-white/80 bg-white/88 shadow-[0_16px_34px_rgba(148,163,184,0.14)] backdrop-blur">
-        <div className="flex items-center gap-1 border-b border-border/70 px-3 py-1.5">
-          <button onClick={() => wrapSelection('**')} className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary transition hover:bg-panel-muted hover:text-text-primary cursor-pointer">
-            <Bold className="h-4 w-4" />
-          </button>
-          <button onClick={() => wrapSelection('_')} className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary transition hover:bg-panel-muted hover:text-text-primary cursor-pointer">
-            <Italic className="h-4 w-4" />
-          </button>
-          <button onClick={formatLinkSelection} className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary transition hover:bg-panel-muted hover:text-text-primary cursor-pointer">
-            <Link2 className="h-4 w-4" />
-          </button>
-          <button onClick={formatListSelection} className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary transition hover:bg-panel-muted hover:text-text-primary cursor-pointer">
-            <List className="h-4 w-4" />
-          </button>
-          <button onClick={formatCodeSelection} className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary transition hover:bg-panel-muted hover:text-text-primary cursor-pointer">
-            <Code2 className="h-4 w-4" />
-          </button>
-        </div>
+      <div className="mx-auto w-full max-w-[820px]">
+        <div className="flex items-center gap-1.5 rounded-[26px] border border-white/80 bg-white/94 px-2 py-2 shadow-[0_16px_34px_rgba(148,163,184,0.14)] backdrop-blur">
+          <div ref={plusMenuRef} className="relative shrink-0">
+            <button
+              onClick={() => {
+                setShowPlusMenu((current) => !current);
+                setShowFormattingMenu(false);
+                setShowEmojiPicker(false);
+              }}
+              type="button"
+              aria-label="Open attachment menu"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-text-secondary transition hover:bg-panel-muted hover:text-text-primary cursor-pointer"
+            >
+              <Plus className="h-4.5 w-4.5" />
+            </button>
 
-        <div className="px-4 pt-3">
+            {showPlusMenu && (
+              <div className="absolute bottom-[calc(100%+10px)] left-0 z-50 w-64 rounded-[24px] border border-white/80 bg-white p-2 shadow-[0_22px_45px_rgba(15,23,42,0.16)]">
+                <button
+                  onClick={handleAttachFile}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm text-text-primary transition hover:bg-panel-muted cursor-pointer"
+                >
+                  <Paperclip className="h-4.5 w-4.5 text-text-secondary" />
+                  Attach file
+                </button>
+                <button
+                  onClick={handleVoiceNote}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm text-text-primary transition hover:bg-panel-muted cursor-pointer"
+                >
+                  <Mic className={`h-4.5 w-4.5 ${isRecordingVoice ? 'text-rose-600' : 'text-text-secondary'}`} />
+                  {isRecordingVoice ? 'Stop recording' : 'Voice note'}
+                </button>
+                <button
+                  onClick={handleShareImage}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm text-text-primary transition hover:bg-panel-muted cursor-pointer"
+                >
+                  <ImageIcon className="h-4.5 w-4.5 text-text-secondary" />
+                  Share image
+                </button>
+                <button
+                  onClick={handleCreatePoll}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm text-text-primary transition hover:bg-panel-muted cursor-pointer"
+                >
+                  <BarChart3 className="h-4.5 w-4.5 text-text-secondary" />
+                  Create poll
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div ref={formattingMenuRef} className="relative shrink-0">
+            <button
+              onClick={() => {
+                setShowFormattingMenu((current) => !current);
+                setShowPlusMenu(false);
+                setShowEmojiPicker(false);
+              }}
+              type="button"
+              aria-label="Open formatting menu"
+              className={`flex h-10 w-10 items-center justify-center rounded-full transition cursor-pointer ${
+                showFormattingMenu ? 'bg-blue-soft text-blue' : 'text-text-secondary hover:bg-panel-muted hover:text-text-primary'
+              }`}
+            >
+              <Type className="h-4.5 w-4.5" />
+            </button>
+
+            {showFormattingMenu && (
+              <div className="absolute bottom-[calc(100%+10px)] left-0 z-50 flex items-center gap-1 rounded-[22px] border border-white/80 bg-white px-2 py-2 shadow-[0_22px_45px_rgba(15,23,42,0.16)]">
+                {formattingActions.map((action) => {
+                  const Icon = action.icon;
+                  return (
+                    <button
+                      key={action.label}
+                      onClick={action.onClick}
+                      type="button"
+                      title={action.label}
+                      aria-label={action.label}
+                      className="flex h-9 w-9 items-center justify-center rounded-full text-text-secondary transition hover:bg-blue-soft hover:text-blue cursor-pointer"
+                    >
+                      <Icon className="h-4 w-4" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={() => {
+              setShowEmojiPicker((current) => !current);
+              setShowPlusMenu(false);
+              setShowFormattingMenu(false);
+            }}
+            type="button"
+            aria-label="Open emoji picker"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-text-secondary transition hover:bg-panel-muted hover:text-text-primary cursor-pointer"
+          >
+            <Smile className="h-4.5 w-4.5" />
+          </button>
+
           <textarea
             ref={inputRef}
             value={message}
             onChange={handleInputChange}
-            placeholder={selectedChat.type === 'channel' ? `Message #${selectedChat.name || 'channel'}` : `Message ${selectedChat.name || 'conversation'}`}
-            className="min-h-[72px] max-h-32 w-full resize-none rounded-[20px] bg-panel-muted px-4 py-3 text-[15px] leading-6 text-text-primary outline-none placeholder:text-text-secondary"
+            placeholder={selectedChat.type === 'channel' ? `Message #${composerTargetName}` : `Message ${composerTargetName}`}
+            className="min-h-[24px] flex-1 resize-none bg-transparent px-2 py-[7px] text-[15px] leading-6 text-text-primary outline-none placeholder:text-text-secondary"
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
@@ -941,74 +1092,12 @@ const MessageInput = ({
               }
             }}
           />
-        </div>
-
-        <div className="flex items-center justify-between gap-3 px-3 pb-3 pt-1.5">
-          <div className="flex items-center gap-1.5">
-            <div ref={plusMenuRef} className="relative">
-              <button
-                onClick={() => setShowPlusMenu((current) => !current)}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-panel-muted text-text-secondary transition hover:bg-panel-strong hover:text-text-primary cursor-pointer"
-              >
-                <Plus className="h-5 w-5" />
-              </button>
-
-              {showPlusMenu && (
-                <div className="absolute bottom-[calc(100%+10px)] left-0 z-50 w-64 rounded-[24px] border border-white/80 bg-white p-2 shadow-[0_22px_45px_rgba(15,23,42,0.16)]">
-                  <button
-                    onClick={handleAttachFile}
-                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm text-text-primary transition hover:bg-panel-muted cursor-pointer"
-                  >
-                    <Paperclip className="h-4.5 w-4.5 text-text-secondary" />
-                    Attach file
-                  </button>
-                  <button
-                    onClick={handleVoiceNote}
-                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm text-text-primary transition hover:bg-panel-muted cursor-pointer"
-                  >
-                    <Mic className={`h-4.5 w-4.5 ${isRecordingVoice ? 'text-rose-600' : 'text-text-secondary'}`} />
-                    {isRecordingVoice ? 'Stop recording' : 'Voice note'}
-                  </button>
-                  <button
-                    onClick={handleShareImage}
-                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm text-text-primary transition hover:bg-panel-muted cursor-pointer"
-                  >
-                    <ImageIcon className="h-4.5 w-4.5 text-text-secondary" />
-                    Share image
-                  </button>
-                  <button
-                    onClick={handleCreatePoll}
-                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm text-text-primary transition hover:bg-panel-muted cursor-pointer"
-                  >
-                    <BarChart3 className="h-4.5 w-4.5 text-text-secondary" />
-                    Create poll
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={() => setShowEmojiPicker((current) => !current)}
-              className="flex h-10 w-10 items-center justify-center rounded-full text-text-secondary transition hover:bg-panel-muted hover:text-text-primary cursor-pointer"
-            >
-              <Smile className="h-5 w-5" />
-            </button>
-
-            <button
-              onClick={handleVoiceNote}
-              className={`flex h-10 w-10 items-center justify-center rounded-full transition cursor-pointer ${
-                isRecordingVoice
-                  ? 'bg-rose-100 text-rose-600 hover:bg-rose-200'
-                  : 'text-text-secondary hover:bg-panel-muted hover:text-text-primary'
-              }`}
-            >
-              <Mic className="h-5 w-5" />
-            </button>
-          </div>
 
           <button
             onClick={() => void handleSend()}
-            className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition ${
+            type="button"
+            aria-label="Send message"
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition ${
               canSend
                 ? 'bg-blue text-white shadow-[0_12px_26px_rgba(37,99,235,0.28)] hover:bg-blue-dark cursor-pointer'
                 : 'bg-panel-muted text-text-secondary cursor-not-allowed'
@@ -1016,7 +1105,6 @@ const MessageInput = ({
             disabled={!canSend}
           >
             {isSending ? <LoaderCircle className="h-4.5 w-4.5 animate-spin" /> : <Send className="h-4.5 w-4.5" />}
-            Send
           </button>
         </div>
       </div>

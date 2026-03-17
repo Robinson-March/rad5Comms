@@ -15,6 +15,7 @@ interface ThreadHeaderProps {
     avatar?: string;
     memberCount?: number;
     isGroup: boolean;
+    isAdminManagedChannel?: boolean;
     type?: 'channel' | 'dm';
   } | null;
 }
@@ -105,8 +106,20 @@ const ThreadHeader = ({ chat }: ThreadHeaderProps) => {
             <div className="text-xs uppercase tracking-[0.2em] text-text-secondary">Members</div>
           </div>
           <button
-            className="inline-flex items-center gap-2 rounded-full bg-blue px-4 py-2.5 text-sm font-medium text-white shadow-[0_14px_28px_rgba(37,99,235,0.22)] transition hover:bg-blue-dark cursor-pointer"
-            onClick={() => setIsAdding((value) => !value)}
+            className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium shadow-[0_14px_28px_rgba(37,99,235,0.22)] transition ${
+              chat.isAdminManagedChannel
+                ? 'cursor-not-allowed bg-panel text-text-secondary shadow-none opacity-70'
+                : 'bg-blue text-white hover:bg-blue-dark cursor-pointer'
+            }`}
+            onClick={() => {
+              if (chat.isAdminManagedChannel) {
+                toast.info('Membership changes for this channel are managed from the admin area.');
+                return;
+              }
+
+              setIsAdding((value) => !value);
+            }}
+            type="button"
           >
             <UserPlus className="h-4 w-4" />
             {isAdding ? 'Close invite' : 'Add members'}
@@ -114,7 +127,13 @@ const ThreadHeader = ({ chat }: ThreadHeaderProps) => {
         </div>
       )}
 
-      {chat.isGroup && isAdding && (
+      {chat.isGroup && chat.isAdminManagedChannel ? (
+        <p className="mt-4 text-sm leading-6 text-text-secondary">
+          Membership for this channel is managed in the admin area.
+        </p>
+      ) : null}
+
+      {chat.isGroup && isAdding && !chat.isAdminManagedChannel && (
         <div className="mt-5 rounded-[24px] bg-panel-muted p-4 text-left">
           <input
             type="text"

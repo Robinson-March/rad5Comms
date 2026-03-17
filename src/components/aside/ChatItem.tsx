@@ -115,7 +115,7 @@ const ChatItem = ({
 
   return (
     <div
-      className="animate-fade-up relative"
+      className={`animate-fade-up relative overflow-visible ${isMenuOpen ? 'z-40' : 'z-0'}`}
       ref={menuRef}
       style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
     >
@@ -222,4 +222,5 @@ const ChatItem = ({
 };
 
 export default ChatItem;
+
 

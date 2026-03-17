@@ -30,6 +30,10 @@ const ThreadPane = ({ isOpen, onBack, onToggle, selectedChat }: ThreadPaneProps)
   }
 
   const isGroup = selectedChat.type === 'channel';
+  const isAdminManagedChannel = Boolean(
+    isGroup &&
+      (selectedChat.isSystem || selectedChat.isDefault || selectedChat.membershipPolicy === 'admin_managed')
+  );
 
   const handleActionSuccess = () => {
     onToggle?.();
@@ -57,6 +61,7 @@ const ThreadPane = ({ isOpen, onBack, onToggle, selectedChat }: ThreadPaneProps)
               chat={{
                 ...selectedChat,
                 isGroup,
+                isAdminManagedChannel,
               }}
             />
           </div>
@@ -68,15 +73,21 @@ const ThreadPane = ({ isOpen, onBack, onToggle, selectedChat }: ThreadPaneProps)
           {isGroup && (
             <div className="rounded-[30px] border border-white/80 bg-white p-5 shadow-[0_22px_45px_rgba(148,163,184,0.14)]">
               <MembersSection
-                members={selectedChat.members || []}
-                isAdmin={selectedChat.isAdmin || false}
-                isGroup={selectedChat.type === 'channel'}
-              />
-            </div>
-          )}
+              members={selectedChat.members || []}
+              isAdmin={selectedChat.isAdmin || false}
+              isGroup={selectedChat.type === 'channel'}
+              isAdminManagedChannel={isAdminManagedChannel}
+            />
+          </div>
+        )}
 
           <div className="rounded-[30px] border border-white/80 bg-white p-5 shadow-[0_22px_45px_rgba(148,163,184,0.14)]">
-            <ActionsSection isGroup={isGroup} chatId={selectedChat.id} onActionSuccess={handleActionSuccess} />
+            <ActionsSection
+              isGroup={isGroup}
+              chatId={selectedChat.id}
+              isAdminManagedChannel={isAdminManagedChannel}
+              onActionSuccess={handleActionSuccess}
+            />
           </div>
         </div>
       </div>

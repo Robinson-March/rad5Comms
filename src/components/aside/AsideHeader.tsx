@@ -1,6 +1,7 @@
 // components/aside/AsideHeader.tsx
 import { useMemo, useState } from 'react';
-import { Search, Settings2 } from 'lucide-react';
+import { Search, Settings2, Shield } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import Skeleton from 'react-loading-skeleton';
 import ChatSearchModal from './ChatSearchModal';
 
@@ -13,6 +14,7 @@ interface AsideHeaderProps {
   currentUserName?: string | null;
   currentUserAvatar?: string | null;
   onProfileOpen?: () => void;
+  canAccessAdmin?: boolean;
 }
 
 const AsideHeader = ({
@@ -24,8 +26,10 @@ const AsideHeader = ({
   currentUserName,
   currentUserAvatar,
   onProfileOpen,
+  canAccessAdmin = false,
 }: AsideHeaderProps) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const navigate = useNavigate();
   const activeMembers = users.filter((user) => user.isOnline).length;
 
   const displayName = useMemo(() => {
@@ -87,13 +91,27 @@ const AsideHeader = ({
                 </span>
               </button>
 
-              <button
-                onClick={() => setIsSearchOpen(true)}
-                className="animate-fade-up animate-delay-1 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border bg-white/92 text-text-secondary shadow-[0_16px_34px_rgba(148,163,184,0.16)] transition duration-300 hover:-translate-y-0.5 hover:border-blue/30 hover:bg-blue-soft hover:text-blue cursor-pointer"
-                aria-label="Search chats"
-              >
-                <Search className="h-4 w-4" />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                {canAccessAdmin ? (
+                  <button
+                    onClick={() => navigate('/admin')}
+                    className="animate-fade-up animate-delay-1 inline-flex h-12 w-12 items-center justify-center rounded-full border border-border bg-white/92 text-text-secondary shadow-[0_16px_34px_rgba(148,163,184,0.16)] transition duration-300 hover:-translate-y-0.5 hover:border-blue/30 hover:bg-blue-soft hover:text-blue cursor-pointer"
+                    aria-label="Open admin area"
+                    type="button"
+                  >
+                    <Shield className="h-4 w-4" />
+                  </button>
+                ) : null}
+
+                <button
+                  onClick={() => setIsSearchOpen(true)}
+                  className="animate-fade-up animate-delay-1 inline-flex h-12 w-12 items-center justify-center rounded-full border border-border bg-white/92 text-text-secondary shadow-[0_16px_34px_rgba(148,163,184,0.16)] transition duration-300 hover:-translate-y-0.5 hover:border-blue/30 hover:bg-blue-soft hover:text-blue cursor-pointer"
+                  aria-label="Search chats"
+                  type="button"
+                >
+                  <Search className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="animate-fade-up animate-delay-2 mt-3 flex flex-wrap gap-2 text-xs text-text-secondary">

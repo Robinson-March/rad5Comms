@@ -4,9 +4,10 @@ import { MoreVertical } from 'lucide-react';
 interface MemberItemProps {
   member: { id: string; name: string; avatar?: string; role?: string };
   isAdmin: boolean;
+  canManageMembers?: boolean;
 }
 
-const MemberItem = ({ member, isAdmin }: MemberItemProps) => {
+const MemberItem = ({ member, isAdmin, canManageMembers = true }: MemberItemProps) => {
   return (
     <div className="group flex items-center justify-between rounded-2xl bg-panel-muted px-3 py-3 transition hover:bg-panel-strong">
       <div className="flex items-center gap-3">
@@ -23,7 +24,7 @@ const MemberItem = ({ member, isAdmin }: MemberItemProps) => {
         </div>
       </div>
 
-      {isAdmin && (
+      {isAdmin && canManageMembers && (
         <button className="flex h-9 w-9 items-center justify-center rounded-full text-text-secondary opacity-0 transition group-hover:opacity-100 hover:bg-white cursor-pointer">
           <MoreVertical className="h-4 w-4" />
         </button>

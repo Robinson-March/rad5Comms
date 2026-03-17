@@ -17,6 +17,8 @@ interface MessageListProps {
   onMessagesViewed?: (messageIds: string[]) => void;
   onPollVoted?: (messageId: string, poll: { options?: string[]; votes?: Record<string, string[]> }) => void;
   onReactionOptimistic?: (messageId: string, emoji: string) => void;
+  matchedMessageIds?: string[];
+  activeSearchMessageId?: string | null;
 }
 
 const MessageList = ({
@@ -30,6 +32,8 @@ const MessageList = ({
   onMessagesViewed,
   onPollVoted,
   onReactionOptimistic,
+  matchedMessageIds = [],
+  activeSearchMessageId = null,
 }: MessageListProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -131,6 +135,15 @@ const MessageList = ({
     return () => observer.disconnect();
   }, [selectedChat, messages, onMessagesViewed]);
 
+  useEffect(() => {
+    if (!containerRef.current || !activeSearchMessageId) {
+      return;
+    }
+
+    const targetMessage = containerRef.current.querySelector(`#msg-${activeSearchMessageId}`) as HTMLElement | null;
+    targetMessage?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [activeSearchMessageId]);
+
   if (isLoading) {
     return (
       <div className="scroll flex-1 overflow-y-auto px-4 pb-6 pt-3 md:px-8">
@@ -202,6 +215,7 @@ const MessageList = ({
   });
 
   const typingLabel = selectedChat?.type === 'dm' ? `${selectedChat.name} is typing` : 'Someone is typing';
+  const matchedMessageIdSet = new Set(matchedMessageIds);
 
   return (
     <div ref={containerRef} className="scroll ambient-grid flex-1 overflow-y-auto px-4 pb-6 pt-3 md:px-8">
@@ -230,6 +244,8 @@ const MessageList = ({
                       message={message}
                       currentUserId={currentUserId}
                       showSenderName={selectedChat?.type === 'channel'}
+                      isSearchMatch={matchedMessageIdSet.has(String(message.id))}
+                      isActiveSearchMatch={activeSearchMessageId === String(message.id)}
                       onDelete={onDeleteMessage}
                       onEdit={onEditMessage}
                       onPollVoted={onPollVoted}

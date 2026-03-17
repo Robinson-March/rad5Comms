@@ -1,10 +1,17 @@
-import { useEffect, useState } from 'react';
+ï»¿import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Eye, EyeOff, Loader2, Lock, Mail, User } from 'lucide-react';
 import { toast } from 'sonner';
 import AuthScaffold from '../components/auth/AuthScaffold';
 import AuthInput from '../components/auth/AuthInput';
+import {
+  PUBLIC_SIGNUP_ENABLED,
+  normalizeAuthUser,
+  resolveMustChangePassword,
+  resolveToken,
+  useAuthSession,
+} from '../context/AuthSessionContext';
 
 type AuthMode = 'login' | 'signup';
 
@@ -16,34 +23,25 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const navigate = useNavigate();
+  const { isLoading: isCheckingSession, isAuthenticated, mustChangePassword, saveSession } = useAuthSession();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-
-    if (!token) {
-      setIsCheckingSession(false);
+    if (isCheckingSession || !isAuthenticated) {
       return;
     }
 
-    axios
-      .get(`${API_BASE_URL}/users/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then(() => {
-        navigate('/home');
-      })
-      .catch(() => {
-        localStorage.removeItem('token');
-        setIsCheckingSession(false);
-      });
-  }, [navigate]);
+    navigate(mustChangePassword ? '/change-password' : '/home', { replace: true });
+  }, [isAuthenticated, isCheckingSession, mustChangePassword, navigate]);
 
   const switchMode = (nextMode: AuthMode) => {
+    if (nextMode === 'signup' && !PUBLIC_SIGNUP_ENABLED) {
+      return;
+    }
+
     setMode(nextMode);
     setError(null);
   };
@@ -68,6 +66,12 @@ const Auth = () => {
       return;
     }
 
+    if (mode === 'signup' && !PUBLIC_SIGNUP_ENABLED) {
+      setError('Public signup is disabled for this deployment');
+      setIsSubmitting(false);
+      return;
+    }
+
     if (mode === 'signup' && !trimmedName) {
       setError('Full name is required');
       setIsSubmitting(false);
@@ -79,18 +83,33 @@ const Auth = () => {
       const payload = mode === 'login' ? { email: trimmedEmail, password } : { name: trimmedName, email: trimmedEmail, password };
 
       const response = await axios.post(`${API_BASE_URL}${endpoint}`, payload);
-      const token = response.data?.token || response.data?.data?.token;
+      const token = resolveToken(response.data);
+      const nextUser = normalizeAuthUser(response.data);
+      const nextMustChangePassword = resolveMustChangePassword(response.data);
 
       if (!token) {
         throw new Error('Missing token in response');
       }
 
-      localStorage.setItem('token', token);
-      window.dispatchEvent(new Event('auth-change'));
+      saveSession({
+        token,
+        user: nextUser || response.data,
+        mustChangePassword: nextMustChangePassword,
+      });
+
       toast.success(mode === 'login' ? 'Logged in successfully!' : 'Account created! Welcome!');
-      navigate('/home');
-    } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.response?.data?.message || 'An error occurred. Please try again.';
+      if (nextMustChangePassword) {
+        navigate('/change-password', {
+          replace: true,
+          state: { currentPassword: password, mustChangePassword: true },
+        });
+      } else {
+        navigate('/home', { replace: true });
+      }
+    } catch (err: unknown) {
+      const errorMsg = axios.isAxiosError(err)
+        ? err.response?.data?.error || err.response?.data?.message || 'An error occurred. Please try again.'
+        : 'An error occurred. Please try again.';
       toast.error(errorMsg, { duration: 5000 });
       setError(errorMsg);
     } finally {
@@ -102,7 +121,11 @@ const Auth = () => {
     <AuthScaffold
       eyebrow="March UI"
       sideTitle="A cleaner way back into your workspace."
-      sideDescription="Sign in or create your account inside the same refined system your team already uses for channels, DMs, and live collaboration."
+      sideDescription={
+        PUBLIC_SIGNUP_ENABLED
+          ? 'Sign in or create your account inside the same refined system your team already uses for channels, DMs, and live collaboration.'
+          : 'Sign in with the account your workspace admin assigned to you and continue in the same refined system your team already uses for channels, DMs, and live collaboration.'
+      }
     >
       <div className="rounded-[34px] border border-white/80 bg-white/90 p-5 shadow-[0_26px_60px_rgba(148,163,184,0.18)] backdrop-blur sm:p-7">
         {isCheckingSession ? (
@@ -112,7 +135,7 @@ const Auth = () => {
             </div>
             <h2 className="mt-6 text-2xl font-semibold text-text-primary">Checking your session</h2>
             <p className="mt-3 max-w-sm text-sm leading-6 text-text-secondary">
-              We’re making sure your last workspace session is still active before showing the auth form.
+              We're making sure your last workspace session is still active before showing the auth form.
             </p>
           </div>
         ) : (
@@ -137,26 +160,28 @@ const Auth = () => {
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-2 rounded-full bg-panel-muted p-1">
-              <button
-                type="button"
-                onClick={() => switchMode('login')}
-                className={`rounded-full px-4 py-2.5 text-sm font-medium transition cursor-pointer ${
-                  mode === 'login' ? 'bg-white text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                Login
-              </button>
-              <button
-                type="button"
-                onClick={() => switchMode('signup')}
-                className={`rounded-full px-4 py-2.5 text-sm font-medium transition cursor-pointer ${
-                  mode === 'signup' ? 'bg-white text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                Sign up
-              </button>
-            </div>
+            {PUBLIC_SIGNUP_ENABLED ? (
+              <div className="mt-6 grid grid-cols-2 rounded-full bg-panel-muted p-1">
+                <button
+                  type="button"
+                  onClick={() => switchMode('login')}
+                  className={`rounded-full px-4 py-2.5 text-sm font-medium transition cursor-pointer ${
+                    mode === 'login' ? 'bg-white text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'
+                  }`}
+                >
+                  Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchMode('signup')}
+                  className={`rounded-full px-4 py-2.5 text-sm font-medium transition cursor-pointer ${
+                    mode === 'signup' ? 'bg-white text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'
+                  }`}
+                >
+                  Sign up
+                </button>
+              </div>
+            ) : null}
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               {error ? (
@@ -230,16 +255,22 @@ const Auth = () => {
               </button>
             </form>
 
-            <p className="mt-6 text-center text-sm text-text-secondary">
-              {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-              <button
-                type="button"
-                onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}
-                className="font-semibold text-blue transition hover:opacity-80 cursor-pointer"
-              >
-                {mode === 'login' ? 'Sign up' : 'Sign in'}
-              </button>
-            </p>
+            {PUBLIC_SIGNUP_ENABLED ? (
+              <p className="mt-6 text-center text-sm text-text-secondary">
+                {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+                <button
+                  type="button"
+                  onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}
+                  className="font-semibold text-blue transition hover:opacity-80 cursor-pointer"
+                >
+                  {mode === 'login' ? 'Sign up' : 'Sign in'}
+                </button>
+              </p>
+            ) : (
+              <p className="mt-6 text-center text-sm text-text-secondary">
+                Need an account? Contact your workspace admin for assignment.
+              </p>
+            )}
           </>
         )}
       </div>
@@ -248,3 +279,4 @@ const Auth = () => {
 };
 
 export default Auth;
+

@@ -11,9 +11,10 @@ interface MembersSectionProps {
   }>;
   isAdmin: boolean;
   isGroup: boolean;
+  isAdminManagedChannel?: boolean;
 }
 
-const MembersSection = ({ members, isAdmin, isGroup }: MembersSectionProps) => {
+const MembersSection = ({ members, isAdmin, isGroup, isAdminManagedChannel = false }: MembersSectionProps) => {
   if (!isGroup) {
     return null;
   }
@@ -32,12 +33,18 @@ const MembersSection = ({ members, isAdmin, isGroup }: MembersSectionProps) => {
 
       <div className="space-y-3">
         {displayedMembers.map((member) => (
-          <MemberItem key={member.id} member={member} isAdmin={isAdmin} />
+          <MemberItem key={member.id} member={member} isAdmin={isAdmin} canManageMembers={!isAdminManagedChannel} />
         ))}
 
         {members.length === 0 && (
           <div className="rounded-2xl bg-panel-muted px-4 py-5 text-center text-sm text-text-secondary">No members yet</div>
         )}
+
+        {isAdminManagedChannel ? (
+          <div className="rounded-2xl bg-panel-muted px-4 py-4 text-sm leading-6 text-text-secondary">
+            Member removal for this channel is handled from the admin area.
+          </div>
+        ) : null}
       </div>
     </div>
   );
